@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.2]
+# omptagger [version 0.2.1]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -355,7 +355,11 @@ class ID3
 
   # Method for writing tags.
   def hash_write
-    @tags.update!
+    if @tags.empty? or (@tags.length == 1 and @tags.frame_text(:TLEN))
+      @tags.strip!
+    else
+      @tags.update!
+    end
   end
 
   # Method for displaying all tags.
