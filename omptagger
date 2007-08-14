@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.2.1]
+# omptagger [version 0.2.2]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -244,9 +244,12 @@ class VorbisComments
 
   # Method for generating new tags based on filename.
   def generate
+    # Use only the basename of the file.
+    value = File.basename(@file)
     # Substitute all underscores with a space and remove the file extension.
+    value = value.gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
     # Split the filename into an array with a maximum length of three elements.
-    value = @file.gsub('_', ' ').sub(/\.(flac|ogg)$/, '').split(' - ', 3)
+    value = value.split(' - ', 3)
 
     # Determine which naming format the file uses.
     if value.length == 2
@@ -419,9 +422,12 @@ class ID3
 
   # Method for generating new tags based on filename.
   def generate
+    # Use only the basename of the file.
+    value = File.basename(@file)
     # Substitute all underscores with a space and remove the file extension.
+    value = value.gsub('_', ' ').sub(/\.mp3$/, '')
     # Split the filename into an array with a maximum length of three elements.
-    value = @file.gsub('_', ' ').sub(/\.mp3$/, '').split(' - ', 3)
+    value = value.split(' - ', 3)
 
     # Determine which naming format the file uses.
     if value.length == 2
