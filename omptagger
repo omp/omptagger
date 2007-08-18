@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.2.2]
+# omptagger [version 0.4]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -29,6 +29,7 @@ getopt = GetoptLong.new(
   ['--preview',    '-p', GetoptLong::NO_ARGUMENT],
   ['--remove',     '-r', GetoptLong::NO_ARGUMENT],
   ['--remove-tag', '-d', GetoptLong::REQUIRED_ARGUMENT],
+  ['--rename',     '-m', GetoptLong::NO_ARGUMENT],
   ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
   ['--help',       '-h', GetoptLong::NO_ARGUMENT]
 )
@@ -42,7 +43,7 @@ getopt.each do |opt, arg|
 
   case opt
   # Options which do not accept any arguments.
-  when 'view', 'generate', 'preview', 'remove', 'help'
+  when 'view', 'generate', 'preview', 'remove', 'rename', 'help'
     opts[opt] = ''
     action = true
   when 'no-colour'
@@ -100,13 +101,15 @@ def help
   puts '  ' + colgrn('--set-tag') + '     ' + colgrn('-s') +
     '  Set a tag ' + colcyn('[required argument: tag=string]')
   puts '  ' + colgrn('--generate') + '    ' + colgrn('-g') +
-    '  Generate tags based on filename '
+    '  Generate tags based on filename'
   puts '  ' + colgrn('--preview') + '     ' + colgrn('-p') +
     '  Preview tags that will be set with generate option'
   puts '  ' + colgrn('--remove') + '      ' + colgrn('-r') +
     '  Remove all tags'
   puts '  ' + colgrn('--remove-tag') + '  ' + colgrn('-d') +
     '  Remove a tag ' + colcyn('[required argument: tag]')
+  puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
+    '  Rename files based on tags'
   puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
     '  Disable use of colour in program output'
   puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
@@ -294,6 +297,33 @@ class VorbisComments
       end
     end
   end
+
+  # Method for renaming files based on tags.
+  def rename
+    unless @tags.has_key?('ARTIST')
+      raise 'Missing ARTIST tag.'
+    end
+    unless @tags.has_key?('TITLE')
+      raise 'Missing TITLE tag.'
+    end
+
+    # Determine what the new filename should be.
+    ext = file.split('.').last.downcase
+    file = File.dirname(@file) + '/'
+    if @tags.has_key?('TRACKNUMBER')
+      file = file + @tags['TRACKNUMBER'] + ' - '
+    end
+    file = file + @tags['ARTIST'] + ' - ' +
+      @tags['TITLE'] + '.' + ext
+
+    # Raise an error if the new and old filenames are identical.
+    if File.basename(@file) == File.basename(file)
+      raise 'Generated filename and current filename are identical.'
+    end
+
+    status('Renaming to ' + file.sub(/^\.\//, '') + '...')
+    File.rename(@file, file)
+  end
 end
 
 # Subclass of VorbisComments containing methods unique to FLAC files.
@@ -472,6 +502,33 @@ class ID3
       end
     end
   end
+
+  # Method for renaming files based on tags.
+  def rename
+    if @tags.frame_text(TAGS['ARTIST']).nil?
+      raise 'Missing ARTIST tag.'
+    end
+    if @tags.frame_text(TAGS['TITLE']).nil?
+      raise 'Missing TITLE tag.'
+    end
+
+    # Determine what the new filename should be.
+    ext = file.split('.').last.downcase
+    file = File.dirname(@file) + '/'
+    unless @tags.frame_text(TAGS['TRACK']).nil?
+      file = file + @tags.frame_text(TAGS['TRACK']) + ' - '
+    end
+    file = file + @tags.frame_text(TAGS['ARTIST']) + ' - ' +
+      @tags.frame_text(TAGS['TITLE']) + '.' + ext
+
+    # Raise an error if the new and old filenames are identical.
+    if File.basename(@file) == File.basename(file)
+      raise 'Generated filename and current filename are identical.'
+    end
+
+    status('Renaming to ' + file.sub(/^\.\//, '') + '...')
+    File.rename(@file, file)
+  end
 end
 
 # Display program help if help action is set, or if no actions are set.
@@ -481,6 +538,7 @@ if opts.has_key?('help') or !action
 end
 
 # Treat all remaining arguments as files.
+warn('No files specified.') if ARGV.length.zero?
 ARGV.each do |file|
   # Process exceptions in order to produce error messages in a custom format
   # without an excessive number of nested if statements.
@@ -492,6 +550,7 @@ ARGV.each do |file|
     raise 'File does not exist.' unless File.exist?(file)
 
     # Determine whether or not the file is supported.
+    raise 'File has no extension.' if file.split('.').length == 1
     ext = file.split('.').last.downcase
     raise 'Not a supported file format.' unless ext =~ /flac|ogg|mp3/
 
@@ -505,13 +564,6 @@ ARGV.each do |file|
     end
 
     # Call methods based on the actions set.
-    if opts.has_key?('generate')
-      track.generate
-      track.hash_write
-    elsif opts.has_key?('preview')
-      track.generate
-    end
-
     if opts.has_key?('set-tag')
       track.set_tag(opts['set-tag'])
       track.hash_write
@@ -523,6 +575,15 @@ ARGV.each do |file|
     elsif opts.has_key?('remove-tag')
       track.remove_tag(opts['remove-tag'])
       track.hash_write
+    end
+
+    if opts.has_key?('preview')
+      track.generate
+    elsif opts.has_key?('generate')
+      track.generate
+      track.hash_write
+    elsif opts.has_key?('rename')
+      track.rename
     end
 
     if opts.has_key?('view')
