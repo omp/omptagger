@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.4]
+# omptagger [version 0.4.1]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -42,15 +42,14 @@ getopt.each do |opt, arg|
   opt = opt.sub('--', '')
 
   case opt
-  # Options which do not accept any arguments.
+  # Options which may be used only once.
   when 'view', 'generate', 'preview', 'remove', 'rename', 'help'
-    opts[opt] = ''
+    opts[opt] = arg
     action = true
   when 'no-colour'
-    opts[opt] = ''
+    opts[opt] = arg
 
-  # Options which accept arguments. Store arguments in an array rather than a
-  # string as these options may be used more than once per command.
+  # Options which may be used more than once.
   when 'view-tag', 'set-tag', 'remove-tag'
     if opts.has_key?(opt)
       opts[opt].push(arg)
@@ -63,15 +62,15 @@ end
 
 # Define colours unless the no-colour option is set.
 if opts.has_key?('no-colour')
-  def colred(text); "#{text}"; end
-  def colgrn(text); "#{text}"; end
-  def colyel(text); "#{text}"; end
-  def colcyn(text); "#{text}"; end
+  def colred(str); return str; end
+  def colgrn(str); return str; end
+  def colyel(str); return str; end
+  def colcyn(str); return str; end
 else
-  def colred(text); "\e[31m#{text}\e[0m"; end
-  def colgrn(text); "\e[32m#{text}\e[0m"; end
-  def colyel(text); "\e[33m#{text}\e[0m"; end
-  def colcyn(text); "\e[36m#{text}\e[0m"; end
+  def colred(str); return "\e[31m#{str}\e[0m"; end
+  def colgrn(str); return "\e[32m#{str}\e[0m"; end
+  def colyel(str); return "\e[33m#{str}\e[0m"; end
+  def colcyn(str); return "\e[36m#{str}\e[0m"; end
 end
 
 # Methods for outputting warning and status messages.
@@ -84,8 +83,14 @@ end
 
 # Method for escaping single quotes for use within single quotes in shell
 # commands. Substitutes all instances of ' with '\''.
-def esc(text)
-  text.gsub("'", "'\\\\''")
+def esc(str)
+  return str.gsub("'", "'\\\\''")
+end
+
+# Method for dynamic spacing; used to correctly align tag and value output.
+def spacing(tags, tag)
+  return ' ' *
+    (tags.map { |e| e.to_s.size }.max + 2 - tag.length)
 end
 
 # Method for outputting program help.
@@ -137,13 +142,9 @@ class VorbisComments
           'COPYRIGHT', 'LICENSE', 'ORGANIZATION', 'DESCRIPTION', 'GENRE',
           'DATE', 'LOCATION', 'CONTACT', 'ISRC']
 
-  # Method for outputting tags and their corresponding values. Uses dynamic
-  # spacing based on the longest tag in the constant.
+  # Method for outputting a tag and its corresponding value.
   def output(tag, value)
-    spacing = ' ' *
-      (TAGS.map { |e| e.to_s.size }.max + 2 - tag.length)
-
-    puts '  ' + colcyn(tag) + spacing + colcyn(value)
+    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + colcyn(value)
   end
 
   # Method for initialising a new object.
@@ -371,13 +372,9 @@ class ID3
     'COMMENT' => :COMM
   }
 
-  # Method for outputting tags and their corresponding values. Uses dynamic
-  # spacing based on the longest tag in the constant.
+  # Method for outputting a tag and its corresponding value.
   def output(tag, value)
-    spacing = ' ' *
-      (TAGS.map { |e| e.to_s.size }.max + 2 - tag.length)
-
-    puts '  ' + colcyn(tag) + spacing + colcyn(value)
+    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + colcyn(value)
   end
 
   # Method for initialising a new object.
@@ -531,10 +528,13 @@ class ID3
   end
 end
 
-# Display program help if help action is set, or if no actions are set.
-if opts.has_key?('help') or !action
+# Display program help if help action is set. If no actions are set, default to
+# either help or view, depending on whether an argument was passed.
+if opts.has_key?('help') or (!action and ARGV.empty?)
   help
   exit 0
+elsif !action
+  opts['view'] = ''
 end
 
 # Treat all remaining arguments as files.
