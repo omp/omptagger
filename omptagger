@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.4.1]
+# omptagger [version 0.6]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -30,6 +30,7 @@ getopt = GetoptLong.new(
   ['--remove',     '-r', GetoptLong::NO_ARGUMENT],
   ['--remove-tag', '-d', GetoptLong::REQUIRED_ARGUMENT],
   ['--rename',     '-m', GetoptLong::NO_ARGUMENT],
+  ['--scheme',     '-n', GetoptLong::REQUIRED_ARGUMENT],
   ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
   ['--help',       '-h', GetoptLong::NO_ARGUMENT]
 )
@@ -37,31 +38,31 @@ getopt = GetoptLong.new(
 # Create a hash and and store in it any options set. Create an actions variable
 # which defaults to false, in order to track whether an action has been set.
 action = false
-opts = Hash.new
+$opts = Hash.new
 getopt.each do |opt, arg|
   opt = opt.sub('--', '')
 
   case opt
   # Options which may be used only once.
-  when 'view', 'generate', 'preview', 'remove', 'rename', 'help'
-    opts[opt] = arg
+  when 'view', 'generate', 'preview', 'remove', 'rename', 'help', 'scheme'
+    $opts[opt] = arg
     action = true
   when 'no-colour'
-    opts[opt] = arg
+    $opts[opt] = arg
 
   # Options which may be used more than once.
   when 'view-tag', 'set-tag', 'remove-tag'
-    if opts.has_key?(opt)
-      opts[opt].push(arg)
+    if $opts.has_key?(opt)
+      $opts[opt].push(arg)
     else
-      opts[opt] = [arg]
+      $opts[opt] = [arg]
     end
     action = true
   end
 end
 
 # Define colours unless the no-colour option is set.
-if opts.has_key?('no-colour')
+if $opts.has_key?('no-colour')
   def colred(str); return str; end
   def colgrn(str); return str; end
   def colyel(str); return str; end
@@ -93,6 +94,27 @@ def spacing(tags, tag)
     (tags.map { |e| e.to_s.size }.max + 2 - tag.length)
 end
 
+# Method for splitting filename based on a naming scheme.
+def namingscheme(scheme, name)
+  # Create a regular expression based on the scheme.
+  regexp = /\A#{Regexp.escape(scheme).gsub(/%[a-z]/, '(.+?)')}\Z/
+
+  tags = scheme.scan(regexp).flatten
+  values = name.scan(regexp).flatten
+
+  unless tags.length == values.length
+    raise 'Filename does not match naming scheme.'
+  end
+
+  # Create hash with tag keys and their corresponding values.
+  result = Hash.new
+  tags.zip(values).each do |tag, value|
+    result[tag.delete('%')] = value
+  end
+
+  return result
+end
+
 # Method for outputting program help.
 def help
   puts colyel('Usage:') + ' omptagger ' + colgrn('[options]') + ' ' +
@@ -115,17 +137,18 @@ def help
     '  Remove a tag ' + colcyn('[required argument: tag]')
   puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
     '  Rename files based on tags'
+  puts '  ' + colgrn('--scheme') + '      ' + colgrn('-n') +
+    '  Allow a file naming scheme to be specified ' + colcyn('[--scheme help]')
   puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
     '  Disable use of colour in program output'
   puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
     '  Display program help'
   puts
   puts colyel('Notes:')
-  puts '  ' + colgrn('*') + ' When generating tags based on filename, the' +
-    ' filename must be in one of the'
-  puts '  ' + '  two following formats: ' + colcyn('01 - Artist - Title.ext') +
-    ' or ' + colcyn('Artist - Title.ext') + '.'
-    ' future release.'
+  puts '  ' + colgrn('*') + ' The default file naming scheme is either ' +
+    colcyn('01 - Artist - Title.ext') + ' or'
+  puts '  ' + '  ' + colcyn('Artist - Title.ext') + ', depending on filename or' +
+    ' tags set.'
   puts '  ' + colgrn('*') + ' Underscores in the filename are converted to' +
     ' spaces in the tags.'
   puts '  ' + colgrn('*') + ' FLAC, Vorbis and MP3 files are fully' +
@@ -252,16 +275,34 @@ class VorbisComments
     value = File.basename(@file)
     # Substitute all underscores with a space and remove the file extension.
     value = value.gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
-    # Split the filename into an array with a maximum length of three elements.
-    value = value.split(' - ', 3)
 
-    # Determine which naming format the file uses.
-    if value.length == 2
-      tag = ['ARTIST', 'TITLE']
-    elsif value.length == 3
-      tag = ['TRACKNUMBER', 'ARTIST', 'TITLE']
+    if $opts.has_key?('scheme')
+      scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
+      keys = { 'a' => 'ARTIST', 't' => 'TITLE', 'n' => 'TRACKNUMBER' }
+
+      tag = Array.new
+      value = Array.new
+
+      scheme.each do |stag, svalue|
+        unless keys.has_key?(stag)
+          raise 'Naming scheme contains an invalid key.'
+        end
+
+        tag = tag.push(keys[stag])
+        value = value.push(svalue)
+      end
     else
-      raise 'Filename is not in a valid format.'
+      # Split the filename into an array with a maximum length of three elements.
+      value = value.split(' - ', 3)
+
+      # Determine which naming format the file uses.
+      if value.length == 2
+        tag = ['ARTIST', 'TITLE']
+      elsif value.length == 3
+        tag = ['TRACKNUMBER', 'ARTIST', 'TITLE']
+      else
+        raise 'Filename does not match naming scheme.'
+      end
     end
 
     status('Generating tags...')
@@ -453,16 +494,34 @@ class ID3
     value = File.basename(@file)
     # Substitute all underscores with a space and remove the file extension.
     value = value.gsub('_', ' ').sub(/\.mp3$/, '')
-    # Split the filename into an array with a maximum length of three elements.
-    value = value.split(' - ', 3)
 
-    # Determine which naming format the file uses.
-    if value.length == 2
-      tag = ['ARTIST', 'TITLE']
-    elsif value.length == 3
-      tag = ['TRACK', 'ARTIST', 'TITLE']
+    if $opts.has_key?('scheme')
+      scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
+      keys = { 'a' => 'ARTIST', 't' => 'TITLE', 'n' => 'TRACK' }
+
+      tag = Array.new
+      value = Array.new
+
+      scheme.each do |stag, svalue|
+        unless keys.has_key?(stag)
+          raise 'Naming scheme contains an invalid key.'
+        end
+
+        tag = tag.push(keys[stag])
+        value = value.push(svalue)
+      end
     else
-      raise 'Filename is not in a valid format.'
+      # Split the filename into an array with a maximum length of three elements.
+      value = value.split(' - ', 3)
+
+      # Determine which naming format the file uses.
+      if value.length == 2
+        tag = ['ARTIST', 'TITLE']
+      elsif value.length == 3
+        tag = ['TRACK', 'ARTIST', 'TITLE']
+      else
+        raise 'Filename does not match naming scheme.'
+      end
     end
 
     status('Generating tags...')
@@ -530,11 +589,16 @@ end
 
 # Display program help if help action is set. If no actions are set, default to
 # either help or view, depending on whether an argument was passed.
-if opts.has_key?('help') or (!action and ARGV.empty?)
+if $opts.has_key?('help') or (!action and ARGV.empty?)
   help
   exit 0
+elsif $opts['scheme'] == 'help'
+  puts '%a - ARTIST'
+  puts '%t - TITLE'
+  puts '%n - TRACKNUMBER or TRACK'
+  exit 0
 elsif !action
-  opts['view'] = ''
+  $opts['view'] = ''
 end
 
 # Treat all remaining arguments as files.
@@ -564,32 +628,32 @@ ARGV.each do |file|
     end
 
     # Call methods based on the actions set.
-    if opts.has_key?('set-tag')
-      track.set_tag(opts['set-tag'])
+    if $opts.has_key?('set-tag')
+      track.set_tag($opts['set-tag'])
       track.hash_write
     end
 
-    if opts.has_key?('remove')
+    if $opts.has_key?('remove')
       track.remove
       track.hash_write
-    elsif opts.has_key?('remove-tag')
-      track.remove_tag(opts['remove-tag'])
+    elsif $opts.has_key?('remove-tag')
+      track.remove_tag($opts['remove-tag'])
       track.hash_write
     end
 
-    if opts.has_key?('preview')
+    if $opts.has_key?('preview')
       track.generate
-    elsif opts.has_key?('generate')
+    elsif $opts.has_key?('generate')
       track.generate
       track.hash_write
-    elsif opts.has_key?('rename')
+    elsif $opts.has_key?('rename')
       track.rename
     end
 
-    if opts.has_key?('view')
+    if $opts.has_key?('view')
       track.view
-    elsif opts.has_key?('view-tag')
-      track.view_tag(opts['view-tag'])
+    elsif $opts.has_key?('view-tag')
+      track.view_tag($opts['view-tag'])
     end
   rescue RuntimeError => message
     warn(message)
