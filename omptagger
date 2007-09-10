@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.6]
+# omptagger [version 0.6.1]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -20,7 +20,7 @@
 require 'getoptlong'
 require 'id3lib'
 
-# List of valid options and whether they accept arguments.
+# List of valid options.
 getopt = GetoptLong.new(
   ['--view',       '-v', GetoptLong::NO_ARGUMENT],
   ['--view-tag',   '-t', GetoptLong::REQUIRED_ARGUMENT],
@@ -35,19 +35,19 @@ getopt = GetoptLong.new(
   ['--help',       '-h', GetoptLong::NO_ARGUMENT]
 )
 
-# Create a hash and and store in it any options set. Create an actions variable
-# which defaults to false, in order to track whether an action has been set.
+# Store any options set in a hash. Create a tracker variable to determine
+# whether an action has been set.
 action = false
-$opts = Hash.new
+$opts = Hash['scheme' => '%a - %t']
 getopt.each do |opt, arg|
-  opt = opt.sub('--', '')
+  opt.sub!('--', '')
 
   case opt
   # Options which may be used only once.
-  when 'view', 'generate', 'preview', 'remove', 'rename', 'help', 'scheme'
+  when 'view', 'generate', 'preview', 'remove', 'rename', 'help'
     $opts[opt] = arg
     action = true
-  when 'no-colour'
+  when 'no-colour', 'scheme'
     $opts[opt] = arg
 
   # Options which may be used more than once.
@@ -90,15 +90,12 @@ end
 
 # Method for dynamic spacing; used to correctly align tag and value output.
 def spacing(tags, tag)
-  return ' ' *
-    (tags.map { |e| e.to_s.size }.max + 2 - tag.length)
+  return ' ' * (tags.map do |str| str.size end.max + 2 - tag.length)
 end
 
 # Method for splitting filename based on a naming scheme.
 def namingscheme(scheme, name)
-  # Create a regular expression based on the scheme.
   regexp = /\A#{Regexp.escape(scheme).gsub(/%[a-z]/, '(.+?)')}\Z/
-
   tags = scheme.scan(regexp).flatten
   values = name.scan(regexp).flatten
 
@@ -106,7 +103,6 @@ def namingscheme(scheme, name)
     raise 'Filename does not match naming scheme.'
   end
 
-  # Create hash with tag keys and their corresponding values.
   result = Hash.new
   tags.zip(values).each do |tag, value|
     result[tag.delete('%')] = value
@@ -138,36 +134,42 @@ def help
   puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
     '  Rename files based on tags'
   puts '  ' + colgrn('--scheme') + '      ' + colgrn('-n') +
-    '  Allow a file naming scheme to be specified ' + colcyn('[--scheme help]')
+    '  Allow a file naming scheme to be specified'
   puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
     '  Disable use of colour in program output'
   puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
     '  Display program help'
   puts
   puts colyel('Notes:')
-  puts '  ' + colgrn('*') + ' The default file naming scheme is either ' +
-    colcyn('01 - Artist - Title.ext') + ' or'
-  puts '  ' + '  ' + colcyn('Artist - Title.ext') + ', depending on filename or' +
-    ' tags set.'
-  puts '  ' + colgrn('*') + ' Underscores in the filename are converted to' +
-    ' spaces in the tags.'
-  puts '  ' + colgrn('*') + ' FLAC, Vorbis and MP3 files are fully' +
-    ' supported. File format is determined'
-  puts '  ' + '  by the file\'s extension.'
+  puts '  ' + colgrn('*') + ' Default file naming scheme is ' +
+    colcyn('Artist - Title') + '.'
+  puts '  ' + colgrn('*') + ' Underscores in filenames are converted to ' +
+    'spaces in tags.'
+  puts '  ' + colgrn('*') + ' Scheme keys: ' + colcyn('%a') + ' - ARTIST, ' +
+    colcyn('%b') + ' - ALBUM, ' + colcyn('%d') + ' - DATE/YEAR,'
+  puts '  ' + '  ' + colcyn('%n') + ' - TRACKNUMBER/TRACK, ' +
+    colcyn('%t') + ' - TITLE.'
 end
 
 # Class for Vorbis comments; used by FLAC and Vorbis files.
 class VorbisComments
   attr_reader :hash, :file
 
-  # Create constant array containing possible tag names.
+  # Possible tags.
   TAGS = ['TITLE', 'VERSION', 'ALBUM', 'TRACKNUMBER', 'ARTIST', 'PERFORMER',
           'COPYRIGHT', 'LICENSE', 'ORGANIZATION', 'DESCRIPTION', 'GENRE',
           'DATE', 'LOCATION', 'CONTACT', 'ISRC']
 
+  # Map scheme keys to tags.
+  KEYS = Hash['a' => 'ARTIST',
+              'b' => 'ALBUM',
+              'd' => 'DATE',
+              'n' => 'TRACKNUMBER',
+              't' => 'TITLE']
+
   # Method for outputting a tag and its corresponding value.
   def output(tag, value)
-    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + colcyn(value)
+    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + value
   end
 
   # Method for initialising a new object.
@@ -176,33 +178,18 @@ class VorbisComments
     @tags = Hash.new
 
     TAGS.each do |tag|
-      # Obtain value of tag and skip to the next tag field if it is empty.
       value = read_tag(tag)
       next if value.empty?
 
-      # Split value into an array if there is more than one field of the same
-      # type.
-      if value.include? "\n"
-        value = value.split("\n")
-        (0 .. (value.length - 1)).each do |i|
-          value[i].sub!(tag + '=', '')
-        end
-      else
-        value.sub!(tag + '=', '')
-      end
-
-      @tags[tag] = value
+      @tags[tag] = value.split("\n").map do |str| str.sub(tag + '=', '') end
     end
   end
 
   # Method for writing tags.
-  def hash_write
-    # Clear file of existing tags.
+  def write_tags
     clear_tags
 
-    # Write tags to file.
     @tags.each do |tag, value|
-      value = [value] if value.kind_of?(String)
       value.each do |value|
         write_tag(tag, value)
       end
@@ -214,7 +201,6 @@ class VorbisComments
     raise 'No tags are set.' if @tags.empty?
 
     @tags.each do |tag, value|
-      value = [value] if value.kind_of?(String)
       value.each do |value|
         output(tag, value)
       end
@@ -233,7 +219,6 @@ class VorbisComments
         value = @tags[tag]
         raise tag + ' tag is not set.' if value.nil?
 
-        value = [value] if value.kind_of?(String)
         value.each do |value|
           output(tag, value)
         end
@@ -261,7 +246,7 @@ class VorbisComments
           value = arg.last
         end
 
-        @tags[tag] = value
+        @tags[tag] = [value]
         view_tag(tag)
       rescue RuntimeError => message
         warn(message)
@@ -276,40 +261,25 @@ class VorbisComments
     # Substitute all underscores with a space and remove the file extension.
     value = value.gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
 
-    if $opts.has_key?('scheme')
-      scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
-      keys = { 'a' => 'ARTIST', 't' => 'TITLE', 'n' => 'TRACKNUMBER' }
+    scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
 
-      tag = Array.new
-      value = Array.new
+    tag = Array.new
+    value = Array.new
 
-      scheme.each do |stag, svalue|
-        unless keys.has_key?(stag)
-          raise 'Naming scheme contains an invalid key.'
-        end
-
-        tag = tag.push(keys[stag])
-        value = value.push(svalue)
+    scheme.each do |stag, svalue|
+      unless KEYS.has_key?(stag)
+        raise 'Naming scheme contains an invalid key.'
       end
-    else
-      # Split the filename into an array with a maximum length of three elements.
-      value = value.split(' - ', 3)
 
-      # Determine which naming format the file uses.
-      if value.length == 2
-        tag = ['ARTIST', 'TITLE']
-      elsif value.length == 3
-        tag = ['TRACKNUMBER', 'ARTIST', 'TITLE']
-      else
-        raise 'Filename does not match naming scheme.'
-      end
+      tag = tag.push(KEYS[stag])
+      value = value.push(svalue)
     end
 
     status('Generating tags...')
 
-    (0 .. (value.length - 1)).each do |i|
-      @tags[tag[i]] = value[i]
-      view_tag(tag[i])
+    tag.zip(value).each do |arr|
+      @tags[arr.first] = [arr.last]
+      view_tag(arr.first)
     end
   end
 
@@ -402,20 +372,24 @@ end
 class ID3
   attr_reader :file, :tags
 
-  # Create constant hash containing possible tag names, and mapping them to
-  # their corresponding frame names.
-  TAGS = {
-    'TITLE'   => :TIT2,
-    'ALBUM'   => :TALB,
-    'TRACK'   => :TRCK,
-    'ARTIST'  => :TPE1,
-    'YEAR'    => :TYER,
-    'COMMENT' => :COMM
-  }
+  # Possible tags.
+  TAGS = Hash['TITLE'   => :TIT2,
+              'ALBUM'   => :TALB,
+              'TRACK'   => :TRCK,
+              'ARTIST'  => :TPE1,
+              'YEAR'    => :TYER,
+              'COMMENT' => :COMM]
+
+  # Map scheme keys to tags.
+  KEYS = Hash['a' => 'ARTIST',
+              'b' => 'ALBUM',
+              'd' => 'YEAR',
+              'n' => 'TRACK',
+              't' => 'TITLE']
 
   # Method for outputting a tag and its corresponding value.
   def output(tag, value)
-    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + colcyn(value)
+    puts '  ' + colcyn(tag) + spacing(TAGS.keys, tag) + colcyn(value)
   end
 
   # Method for initialising a new object.
@@ -425,7 +399,7 @@ class ID3
   end
 
   # Method for writing tags.
-  def hash_write
+  def write_tags
     if @tags.empty? or (@tags.length == 1 and @tags.frame_text(:TLEN))
       @tags.strip!
     else
@@ -437,10 +411,10 @@ class ID3
   def view
     raise 'No tags are set.' if @tags.empty?
 
-    TAGS.each { |tag, frame|
+    TAGS.each do |tag, frame|
       value = @tags.frame_text(frame)
       output(tag, value) unless value.nil?
-    }
+    end
   end
 
   # Method for displaying certain tags.
@@ -495,40 +469,25 @@ class ID3
     # Substitute all underscores with a space and remove the file extension.
     value = value.gsub('_', ' ').sub(/\.mp3$/, '')
 
-    if $opts.has_key?('scheme')
-      scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
-      keys = { 'a' => 'ARTIST', 't' => 'TITLE', 'n' => 'TRACK' }
+    scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
 
-      tag = Array.new
-      value = Array.new
+    tag = Array.new
+    value = Array.new
 
-      scheme.each do |stag, svalue|
-        unless keys.has_key?(stag)
-          raise 'Naming scheme contains an invalid key.'
-        end
-
-        tag = tag.push(keys[stag])
-        value = value.push(svalue)
+    scheme.each do |stag, svalue|
+      unless KEYS.has_key?(stag)
+        raise 'Naming scheme contains an invalid key.'
       end
-    else
-      # Split the filename into an array with a maximum length of three elements.
-      value = value.split(' - ', 3)
 
-      # Determine which naming format the file uses.
-      if value.length == 2
-        tag = ['ARTIST', 'TITLE']
-      elsif value.length == 3
-        tag = ['TRACK', 'ARTIST', 'TITLE']
-      else
-        raise 'Filename does not match naming scheme.'
-      end
+      tag = tag.push(KEYS[stag])
+      value = value.push(svalue)
     end
 
     status('Generating tags...')
 
-    (0 .. (value.length - 1)).each do |i|
-      @tags.set_frame_text(TAGS[tag[i]], value[i])
-      view_tag(tag[i])
+    tag.zip(value).each do |arr|
+      @tags.set_frame_text(TAGS[arr.first], arr.last)
+      view_tag(arr.first)
     end
   end
 
@@ -592,11 +551,6 @@ end
 if $opts.has_key?('help') or (!action and ARGV.empty?)
   help
   exit 0
-elsif $opts['scheme'] == 'help'
-  puts '%a - ARTIST'
-  puts '%t - TITLE'
-  puts '%n - TRACKNUMBER or TRACK'
-  exit 0
 elsif !action
   $opts['view'] = ''
 end
@@ -630,22 +584,22 @@ ARGV.each do |file|
     # Call methods based on the actions set.
     if $opts.has_key?('set-tag')
       track.set_tag($opts['set-tag'])
-      track.hash_write
+      track.write_tags
     end
 
     if $opts.has_key?('remove')
       track.remove
-      track.hash_write
+      track.write_tags
     elsif $opts.has_key?('remove-tag')
       track.remove_tag($opts['remove-tag'])
-      track.hash_write
+      track.write_tags
     end
 
     if $opts.has_key?('preview')
       track.generate
     elsif $opts.has_key?('generate')
       track.generate
-      track.hash_write
+      track.write_tags
     elsif $opts.has_key?('rename')
       track.rename
     end
