@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.6.1]
+# omptagger [version 0.6.2]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -319,14 +319,10 @@ class VorbisComments
       raise 'Missing TITLE tag.'
     end
 
-    # Determine what the new filename should be.
-    ext = file.split('.').last.downcase
-    file = File.dirname(@file) + '/'
-    if @tags.has_key?('TRACKNUMBER')
-      file = file + @tags['TRACKNUMBER'] + ' - '
-    end
-    file = file + @tags['ARTIST'] + ' - ' +
-      @tags['TITLE'] + '.' + ext
+    # Determine the new filename.
+    file = @tags['ARTIST'].first + ' - ' + @tags['TITLE'].first +
+      '.' + @file.split('.').last.downcase
+    file = File.dirname(@file) + '/' + file.gsub('/', '_')
 
     # Raise an error if the new and old filenames are identical.
     if File.basename(@file) == File.basename(file)
@@ -527,14 +523,11 @@ class ID3
       raise 'Missing TITLE tag.'
     end
 
-    # Determine what the new filename should be.
-    ext = file.split('.').last.downcase
-    file = File.dirname(@file) + '/'
-    unless @tags.frame_text(TAGS['TRACK']).nil?
-      file = file + @tags.frame_text(TAGS['TRACK']) + ' - '
-    end
-    file = file + @tags.frame_text(TAGS['ARTIST']) + ' - ' +
-      @tags.frame_text(TAGS['TITLE']) + '.' + ext
+    # Determine the new filename.
+    file = @tags.frame_text(TAGS['ARTIST']) + ' - ' +
+      @tags.frame_text(TAGS['TITLE']) +
+      '.' + @file.split('.').last.downcase
+    file = File.dirname(@file) + '/' + file.gsub('/', '_')
 
     # Raise an error if the new and old filenames are identical.
     if File.basename(@file) == File.basename(file)
