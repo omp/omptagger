@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.6.2]
+# omptagger [version 0.8]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -111,46 +111,6 @@ def namingscheme(scheme, name)
   return result
 end
 
-# Method for outputting program help.
-def help
-  puts colyel('Usage:') + ' omptagger ' + colgrn('[options]') + ' ' +
-    colgrn('[files]')
-  puts
-  puts colyel('Options:')
-  puts '  ' + colgrn('--view') + '        ' + colgrn('-v') +
-    '  Display all tags'
-  puts '  ' + colgrn('--view-tag') + '    ' + colgrn('-t') +
-    '  Display a tag ' + colcyn('[required argument: tag]')
-  puts '  ' + colgrn('--set-tag') + '     ' + colgrn('-s') +
-    '  Set a tag ' + colcyn('[required argument: tag=string]')
-  puts '  ' + colgrn('--generate') + '    ' + colgrn('-g') +
-    '  Generate tags based on filename'
-  puts '  ' + colgrn('--preview') + '     ' + colgrn('-p') +
-    '  Preview tags that will be set with generate option'
-  puts '  ' + colgrn('--remove') + '      ' + colgrn('-r') +
-    '  Remove all tags'
-  puts '  ' + colgrn('--remove-tag') + '  ' + colgrn('-d') +
-    '  Remove a tag ' + colcyn('[required argument: tag]')
-  puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
-    '  Rename files based on tags'
-  puts '  ' + colgrn('--scheme') + '      ' + colgrn('-n') +
-    '  Allow a file naming scheme to be specified'
-  puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
-    '  Disable use of colour in program output'
-  puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
-    '  Display program help'
-  puts
-  puts colyel('Notes:')
-  puts '  ' + colgrn('*') + ' Default file naming scheme is ' +
-    colcyn('Artist - Title') + '.'
-  puts '  ' + colgrn('*') + ' Underscores in filenames are converted to ' +
-    'spaces in tags.'
-  puts '  ' + colgrn('*') + ' Scheme keys: ' + colcyn('%a') + ' - ARTIST, ' +
-    colcyn('%b') + ' - ALBUM, ' + colcyn('%d') + ' - DATE/YEAR,'
-  puts '  ' + '  ' + colcyn('%n') + ' - TRACKNUMBER/TRACK, ' +
-    colcyn('%t') + ' - TITLE.'
-end
-
 # Class for Vorbis comments; used by FLAC and Vorbis files.
 class VorbisComments
   attr_reader :hash, :file
@@ -256,28 +216,22 @@ class VorbisComments
 
   # Method for generating new tags based on filename.
   def generate
-    # Use only the basename of the file.
-    value = File.basename(@file)
-    # Substitute all underscores with a space and remove the file extension.
-    value = value.gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
-
+    value = File.basename(@file).gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
     scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
 
-    tag = Array.new
-    value = Array.new
+    tags = Array.new
+    values = Array.new
 
-    scheme.each do |stag, svalue|
-      unless KEYS.has_key?(stag)
-        raise 'Naming scheme contains an invalid key.'
-      end
+    scheme.each do |tag, value|
+      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
 
-      tag = tag.push(KEYS[stag])
-      value = value.push(svalue)
+      tag = tag.push(KEYS[tag])
+      value = value.push(value)
     end
 
     status('Generating tags...')
 
-    tag.zip(value).each do |arr|
+    tags.zip(values).each do |arr|
       @tags[arr.first] = [arr.last]
       view_tag(arr.first)
     end
@@ -312,22 +266,20 @@ class VorbisComments
 
   # Method for renaming files based on tags.
   def rename
-    unless @tags.has_key?('ARTIST')
-      raise 'Missing ARTIST tag.'
-    end
-    unless @tags.has_key?('TITLE')
-      raise 'Missing TITLE tag.'
+    file = $opts['scheme']
+
+    file.scan(/%([a-z])/).flatten.each do |key|
+      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(key)
+      raise 'Missing ' + KEYS[key] + ' tag.' unless @tags[KEYS[key]]
+
+      file = file.gsub('%' + key, @tags[KEYS[key]].first)
     end
 
-    # Determine the new filename.
-    file = @tags['ARTIST'].first + ' - ' + @tags['TITLE'].first +
-      '.' + @file.split('.').last.downcase
-    file = File.dirname(@file) + '/' + file.gsub('/', '_')
+    file = File.dirname(@file) + '/' + file.gsub('/', '_') +
+      @file.sub(/.*\./, '.')
 
-    # Raise an error if the new and old filenames are identical.
-    if File.basename(@file) == File.basename(file)
-      raise 'Generated filename and current filename are identical.'
-    end
+    raise 'Generated filename and current filename are identical.' \
+      if File.basename(@file) == File.basename(file)
 
     status('Renaming to ' + file.sub(/^\.\//, '') + '...')
     File.rename(@file, file)
@@ -385,7 +337,7 @@ class ID3
 
   # Method for outputting a tag and its corresponding value.
   def output(tag, value)
-    puts '  ' + colcyn(tag) + spacing(TAGS.keys, tag) + colcyn(value)
+    puts '  ' + colcyn(tag) + spacing(TAGS.keys, tag) + value
   end
 
   # Method for initialising a new object.
@@ -460,28 +412,22 @@ class ID3
 
   # Method for generating new tags based on filename.
   def generate
-    # Use only the basename of the file.
-    value = File.basename(@file)
-    # Substitute all underscores with a space and remove the file extension.
-    value = value.gsub('_', ' ').sub(/\.mp3$/, '')
-
+    value = File.basename(@file).gsub('_', ' ').sub(/\.mp3$/, '')
     scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
 
-    tag = Array.new
-    value = Array.new
+    tags = Array.new
+    values = Array.new
 
-    scheme.each do |stag, svalue|
-      unless KEYS.has_key?(stag)
-        raise 'Naming scheme contains an invalid key.'
-      end
+    scheme.each do |tag, value|
+      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
 
-      tag = tag.push(KEYS[stag])
-      value = value.push(svalue)
+      tag = tag.push(KEYS[tag])
+      value = value.push(value)
     end
 
     status('Generating tags...')
 
-    tag.zip(value).each do |arr|
+    tags.zip(values).each do |arr|
       @tags.set_frame_text(TAGS[arr.first], arr.last)
       view_tag(arr.first)
     end
@@ -516,23 +462,21 @@ class ID3
 
   # Method for renaming files based on tags.
   def rename
-    if @tags.frame_text(TAGS['ARTIST']).nil?
-      raise 'Missing ARTIST tag.'
-    end
-    if @tags.frame_text(TAGS['TITLE']).nil?
-      raise 'Missing TITLE tag.'
+    file = $opts['scheme']
+
+    file.scan(/%([a-z])/).flatten.each do |key|
+      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(key)
+      raise 'Missing ' + KEYS[key] + ' tag.' \
+        if @tags.frame_text(TAGS[KEYS[key]]).nil?
+
+      file = file.gsub('%' + key, @tags.frame_text(TAGS[KEYS[key]]))
     end
 
-    # Determine the new filename.
-    file = @tags.frame_text(TAGS['ARTIST']) + ' - ' +
-      @tags.frame_text(TAGS['TITLE']) +
-      '.' + @file.split('.').last.downcase
-    file = File.dirname(@file) + '/' + file.gsub('/', '_')
+    file = File.dirname(@file) + '/' + file.gsub('/', '_') +
+      @file.sub(/.*\./, '.')
 
-    # Raise an error if the new and old filenames are identical.
-    if File.basename(@file) == File.basename(file)
-      raise 'Generated filename and current filename are identical.'
-    end
+    raise 'Generated filename and current filename are identical.' \
+      if File.basename(@file) == File.basename(file)
 
     status('Renaming to ' + file.sub(/^\.\//, '') + '...')
     File.rename(@file, file)
@@ -542,7 +486,42 @@ end
 # Display program help if help action is set. If no actions are set, default to
 # either help or view, depending on whether an argument was passed.
 if $opts.has_key?('help') or (!action and ARGV.empty?)
-  help
+  puts colyel('Usage:') + ' omptagger ' + colgrn('[options]') + ' ' +
+    colgrn('[files]')
+  puts
+  puts colyel('Options:')
+  puts '  ' + colgrn('--view') + '        ' + colgrn('-v') +
+    '  Display all tags'
+  puts '  ' + colgrn('--view-tag') + '    ' + colgrn('-t') +
+    '  Display a tag ' + colcyn('[required argument: tag]')
+  puts '  ' + colgrn('--set-tag') + '     ' + colgrn('-s') +
+    '  Set a tag ' + colcyn('[required argument: tag=string]')
+  puts '  ' + colgrn('--generate') + '    ' + colgrn('-g') +
+    '  Generate tags based on filename'
+  puts '  ' + colgrn('--preview') + '     ' + colgrn('-p') +
+    '  Preview tags that will be set with generate option'
+  puts '  ' + colgrn('--remove') + '      ' + colgrn('-r') +
+    '  Remove all tags'
+  puts '  ' + colgrn('--remove-tag') + '  ' + colgrn('-d') +
+    '  Remove a tag ' + colcyn('[required argument: tag]')
+  puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
+    '  Rename files based on tags'
+  puts '  ' + colgrn('--scheme') + '      ' + colgrn('-n') +
+    '  Allow a file naming scheme to be specified'
+  puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
+    '  Disable use of colour in program output'
+  puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
+    '  Display program help'
+  puts
+  puts colyel('Notes:')
+  puts '  ' + colgrn('*') + ' Default file naming scheme is ' +
+    colcyn('Artist - Title') + '.'
+  puts '  ' + colgrn('*') + ' Underscores in filenames are converted to ' +
+    'spaces in tags.'
+  puts '  ' + colgrn('*') + ' Scheme keys: ' + colcyn('%a') + ' - ARTIST, ' +
+    colcyn('%b') + ' - ALBUM, ' + colcyn('%d') + ' - DATE/YEAR,'
+  puts '  ' + '  ' + colcyn('%n') + ' - TRACKNUMBER/TRACK, ' +
+    colcyn('%t') + ' - TITLE.'
   exit 0
 elsif !action
   $opts['view'] = ''
@@ -554,24 +533,23 @@ ARGV.each do |file|
   # Process exceptions in order to produce error messages in a custom format
   # without an excessive number of nested if statements.
   begin
-    # Output name of the current file.
+    # Output name of file.
     puts colyel(file)
 
-    # Verify that the file exists.
+    # Verify that file exists.
     raise 'File does not exist.' unless File.exist?(file)
 
-    # Determine whether or not the file is supported.
-    raise 'File has no extension.' if file.split('.').length == 1
-    ext = file.split('.').last.downcase
-    raise 'Not a supported file format.' unless ext =~ /flac|ogg|mp3/
-
-    # Create track variable based on the file format.
-    if ext == 'flac'
+    # Determine file format.
+    raise 'File has no extension.' if (file =~ /\./).nil?
+    case file.sub(/.*\./, '')
+    when 'flac'
       track = FLAC.new(file)
-    elsif ext == 'ogg'
+    when 'ogg'
       track = Vorbis.new(file)
-    elsif ext == 'mp3'
+    when 'mp3'
       track = ID3.new(file)
+    else
+      raise 'Not a supported file format.' 
     end
 
     # Call methods based on the actions set.
