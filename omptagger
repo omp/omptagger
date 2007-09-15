@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.8]
+# omptagger [version 0.8.1]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -225,8 +225,8 @@ class VorbisComments
     scheme.each do |tag, value|
       raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
 
-      tag = tag.push(KEYS[tag])
-      value = value.push(value)
+      tags.push(KEYS[tag])
+      values.push(value)
     end
 
     status('Generating tags...')
@@ -421,8 +421,8 @@ class ID3
     scheme.each do |tag, value|
       raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
 
-      tag = tag.push(KEYS[tag])
-      value = value.push(value)
+      tags.push(KEYS[tag])
+      values.push(value)
     end
 
     status('Generating tags...')
