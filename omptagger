@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 0.8.1]
+# omptagger [version 1.0]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -12,113 +12,132 @@
 # on the format of the file being worked with.
 #
 # Dependencies:
-# * ruby [ http://www.ruby-lang.org/ ]
-# * flac [ http://flac.sourceforge.net/ ]
-# * id3lib-ruby [ http://id3lib-ruby.rubyforge.org/ ]
-# * vorbis-tools [ http://www.vorbis.com/ ]
+# * ruby           http://www.ruby-lang.org/
+# * flac           http://flac.sourceforge.net/
+# * id3lib-ruby    http://id3lib-ruby.rubyforge.org/
+# * vorbis-tools   http://www.vorbis.com/
 
 require 'getoptlong'
 require 'id3lib'
 
-# List of valid options.
-getopt = GetoptLong.new(
-  ['--view',       '-v', GetoptLong::NO_ARGUMENT],
-  ['--view-tag',   '-t', GetoptLong::REQUIRED_ARGUMENT],
-  ['--set-tag',    '-s', GetoptLong::REQUIRED_ARGUMENT],
-  ['--generate',   '-g', GetoptLong::NO_ARGUMENT],
-  ['--preview',    '-p', GetoptLong::NO_ARGUMENT],
-  ['--remove',     '-r', GetoptLong::NO_ARGUMENT],
-  ['--remove-tag', '-d', GetoptLong::REQUIRED_ARGUMENT],
-  ['--rename',     '-m', GetoptLong::NO_ARGUMENT],
-  ['--scheme',     '-n', GetoptLong::REQUIRED_ARGUMENT],
-  ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
-  ['--help',       '-h', GetoptLong::NO_ARGUMENT]
-)
+# Define colours.
+def colred(str) return "\e[31m#{str}\e[0m" end
+def colgrn(str) return "\e[32m#{str}\e[0m" end
+def colyel(str) return "\e[33m#{str}\e[0m" end
+def colcyn(str) return "\e[36m#{str}\e[0m" end
 
-# Store any options set in a hash. Create a tracker variable to determine
-# whether an action has been set.
-action = false
-$opts = Hash['scheme' => '%a - %t']
-getopt.each do |opt, arg|
-  opt.sub!('--', '')
-
-  case opt
-  # Options which may be used only once.
-  when 'view', 'generate', 'preview', 'remove', 'rename', 'help'
-    $opts[opt] = arg
-    action = true
-  when 'no-colour', 'scheme'
-    $opts[opt] = arg
-
-  # Options which may be used more than once.
-  when 'view-tag', 'set-tag', 'remove-tag'
-    if $opts.has_key?(opt)
-      $opts[opt].push(arg)
-    else
-      $opts[opt] = [arg]
-    end
-    action = true
-  end
-end
-
-# Define colours unless the no-colour option is set.
-if $opts.has_key?('no-colour')
-  def colred(str); return str; end
-  def colgrn(str); return str; end
-  def colyel(str); return str; end
-  def colcyn(str); return str; end
-else
-  def colred(str); return "\e[31m#{str}\e[0m"; end
-  def colgrn(str); return "\e[32m#{str}\e[0m"; end
-  def colyel(str); return "\e[33m#{str}\e[0m"; end
-  def colcyn(str); return "\e[36m#{str}\e[0m"; end
-end
-
-# Methods for outputting warning and status messages.
-def warn(message)
-  puts '  ' + colred('ERROR:') + ' ' + message
-end
-def status(message)
-  puts '  ' + colgrn(message)
-end
-
-# Method for escaping single quotes for use within single quotes in shell
-# commands. Substitutes all instances of ' with '\''.
+# Escape single quotes for use within single quotes in shell commands.
 def esc(str)
+  # Substitute all instances of ' with '\''.
   return str.gsub("'", "'\\\\''")
 end
 
-# Method for dynamic spacing; used to correctly align tag and value output.
-def spacing(tags, tag)
-  return ' ' * (tags.map do |str| str.size end.max + 2 - tag.length)
+# Output a tag name and value.
+def output(tag, val)
+  # Alter capitalisation of tag name for aesthetic purposes.
+  tag = tag.downcase.capitalize unless tag == 'ISRC'
+  tag = 'TrackNumber' if tag == 'Tracknumber'
+
+  # The number statically defined here should be two greater than the length of
+  # the longest possible tag name.
+  puts '    ' + colcyn(tag) + ' ' * (14 - tag.length) + val
 end
 
-# Method for splitting filename based on a naming scheme.
-def namingscheme(scheme, name)
-  regexp = /\A#{Regexp.escape(scheme).gsub(/%[a-z]/, '(.+?)')}\Z/
-  tags = scheme.scan(regexp).flatten
-  values = name.scan(regexp).flatten
+# Split a filename based on a naming scheme. An asterisk is a wildcard key.
+def schemesplit(scheme, file, keystr)
+  # Determine keys and values using a regular expression.
+  regexp = /\A#{Regexp.escape(scheme).gsub(/%([#{keystr}]|\\\*)/, '(.*?)')}\Z/
+  keys = scheme.scan(regexp).flatten
+  vals = file.scan(regexp).flatten
 
-  unless tags.length == values.length
-    raise 'Filename does not match naming scheme.'
-  end
+  raise 'Filename does not match naming scheme.' if keys.length != vals.length
 
+  # Map scheme keys to values.
   result = Hash.new
-  tags.zip(values).each do |tag, value|
-    result[tag.delete('%')] = value
+  keys.zip(vals).each do |key, val|
+    result[key[1,1]] = val unless key == '%*'
   end
 
   return result
 end
 
+# Display help information.
+def help
+  options = [['--view        -v', 'View all tags'],
+             ['--view-tag    -t', 'View a tag'],
+             ['--set-tag     -s', 'Set a tag'],
+             ['--remove      -r', 'Remove all tags'],
+             ['--remove-tag  -d', 'Remove a tag'],
+             ['--generate    -g', 'Generate tags based on filename'],
+             ['--rename      -m', 'Generate filename based on tags'],
+             ['--scheme      -n', 'Specify a file naming scheme'],
+             ['--pretend     -p', 'Do not make any actual changes'],
+             ['--no-colour   -c', 'Disable use of colour in output'],
+             ['--list        -l', 'Display list of available tags'],
+             ['--help        -h', 'Display help information'],
+             ['--rename      -m', 'Generate filename based on tags']]
+  notes = ['The default file naming scheme is Artist - Title.',
+           'Schemes must be specified prior to actions that use them.',
+           'Underscores in filenames are converted to spaces in tags.']
+
+  puts colyel('Usage:') + ' omptagger ' + colgrn('[options] [files]')
+  puts
+  puts colyel('Options:')
+  options.each do |option, description|
+    puts '  ' + colgrn(option) + '  ' + description
+  end
+  puts
+  puts colyel('Notes:')
+  notes.each do |note|
+    puts '  ' + colgrn('*') + ' ' + note
+  end
+  exit
+end
+
+# Display list of available tags.
+def list
+  puts '┌───────────────────────────────────┐',
+       '│ Keys   Vorbis Comments   ID3 Tags │',
+       '├───────────────────────────────────┤',
+       '│ %a     Artist            Artist   │',
+       '│ %b     Album             Album    │',
+       '│ %d     Date              Year     │',
+       '│ %n     TrackNumber       Track    │',
+       '│ %t     Title             Title    │',
+       '│ %*     Wildcard          Wildcard │',
+       '├───────────────────────────────────┤',
+       '│        Contact                    │',
+       '│        Copyright                  │',
+       '│        Description                │',
+       '│        Genre                      │',
+       '│        ISRC                       │',
+       '│        License                    │',
+       '│        Location                   │',
+       '│        Organization               │',
+       '│        Performer                  │',
+       '│        Version                    │',
+       '└───────────────────────────────────┘'
+  exit
+end
+
 # Class for Vorbis comments; used by FLAC and Vorbis files.
 class VorbisComments
-  attr_reader :hash, :file
-
   # Possible tags.
-  TAGS = ['TITLE', 'VERSION', 'ALBUM', 'TRACKNUMBER', 'ARTIST', 'PERFORMER',
-          'COPYRIGHT', 'LICENSE', 'ORGANIZATION', 'DESCRIPTION', 'GENRE',
-          'DATE', 'LOCATION', 'CONTACT', 'ISRC']
+  TAGS = ['ALBUM',
+          'ARTIST',
+          'CONTACT',
+          'COPYRIGHT',
+          'DATE',
+          'DESCRIPTION',
+          'GENRE',
+          'ISRC',
+          'LICENSE',
+          'LOCATION',
+          'ORGANIZATION',
+          'PERFORMER',
+          'TITLE',
+          'TRACKNUMBER',
+          'VERSION']
 
   # Map scheme keys to tags.
   KEYS = Hash['a' => 'ARTIST',
@@ -127,206 +146,160 @@ class VorbisComments
               'n' => 'TRACKNUMBER',
               't' => 'TITLE']
 
-  # Method for outputting a tag and its corresponding value.
-  def output(tag, value)
-    puts '  ' + colcyn(tag) + spacing(TAGS, tag) + value
-  end
-
-  # Method for initialising a new object.
   def initialize(file)
-    @file = file
+    @file = @origfile = file
     @tags = Hash.new
+    @write = false
 
     TAGS.each do |tag|
-      value = read_tag(tag)
-      next if value.empty?
+      val = read_tag(tag)
+      next if val.empty?
 
-      @tags[tag] = value.split("\n").map do |str| str.sub(tag + '=', '') end
+      @tags[tag] = val.gsub(/^#{tag}=/i, '').split("\n")
     end
   end
 
-  # Method for writing tags.
-  def write_tags
-    clear_tags
-
-    @tags.each do |tag, value|
-      value.each do |value|
-        write_tag(tag, value)
-      end
-    end
-  end
-
-  # Method for displaying all tags.
   def view
     raise 'No tags are set.' if @tags.empty?
 
-    @tags.each do |tag, value|
-      value.each do |value|
-        output(tag, value)
+    @tags.each do |tag, val|
+      val.each do |val|
+        output(tag, val)
       end
     end
   end
 
-  # Method for displaying certain tags.
   def view_tag(arg)
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        tag = arg.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
+    tag = arg.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
 
-        value = @tags[tag]
-        raise tag + ' tag is not set.' if value.nil?
+    val = @tags[tag]
+    raise tag + ' tag is not set.' if val.nil?
 
-        value.each do |value|
-          output(tag, value)
-        end
-      rescue RuntimeError => message
-        warn(message)
-      end
+    val.each do |val|
+      output(tag, val)
     end
   end
 
-  # Method for setting tags.
   def set_tag(arg)
-    status('Setting tags...')
+    arg = arg.split('=', 2)
+    tag = arg.shift.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
 
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        arg = arg.split('=', 2)
-        tag = arg.first.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
+    @tags[tag] = arg
+    view_tag(tag)
 
-        if arg.length == 1
-          value = ''
-        else
-          value = arg.last
-        end
-
-        @tags[tag] = [value]
-        view_tag(tag)
-      rescue RuntimeError => message
-        warn(message)
-      end
-    end
+    @write = true
   end
 
-  # Method for generating new tags based on filename.
-  def generate
-    value = File.basename(@file).gsub('_', ' ').sub(/\.(flac|ogg)$/, '')
-    scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
+  def remove
+    raise 'No tags are set.' if @tags.empty?
 
-    tags = Array.new
-    values = Array.new
+    @tags.clear
+    @write = true
+  end
 
-    scheme.each do |tag, value|
-      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
+  def remove_tag(arg)
+    tag = arg.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
+    raise tag + ' tag is not set.' unless @tags.include?(tag)
 
-      tags.push(KEYS[tag])
-      values.push(value)
+    @tags.delete(tag)
+    @write = true
+  end
+
+  def generate(scheme)
+    val = File.basename(@file, File.extname(@file)).gsub('_', ' ')
+    scheme = schemesplit(scheme.gsub('_', ' '), val, KEYS.keys.join)
+
+    tagval = Array.new
+
+    scheme.each do |tag, val|
+      tagval << [KEYS[tag], val]
     end
 
-    status('Generating tags...')
-
-    tags.zip(values).each do |arr|
+    tagval.each do |arr|
       @tags[arr.first] = [arr.last]
       view_tag(arr.first)
     end
+
+    @write = true
   end
 
-  # Method for removing all tags.
-  def remove
-    raise 'No tags are set.' if @tags.empty?
-    status('Removing tags...')
+  def rename(scheme)
+    file = scheme
 
-    @tags.clear
-  end
-
-  # Method for removing certain tags.
-  def remove_tag(arg)
-    status('Removing tags...')
-
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        tag = arg.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.include?(tag)
-        raise tag + ' tag is not set.' unless @tags.include?(tag)
-
-        @tags.delete(tag)
-      rescue RuntimeError => message
-        warn(message)
-      end
-    end
-  end
-
-  # Method for renaming files based on tags.
-  def rename
-    file = $opts['scheme']
-
-    file.scan(/%([a-z])/).flatten.each do |key|
-      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(key)
+    file.scan(/%([#{KEYS.keys.join}])/).flatten.each do |key|
       raise 'Missing ' + KEYS[key] + ' tag.' unless @tags[KEYS[key]]
-
       file = file.gsub('%' + key, @tags[KEYS[key]].first)
     end
 
     file = File.dirname(@file) + '/' + file.gsub('/', '_') +
-      @file.sub(/.*\./, '.')
+      File.extname(@file)
 
-    raise 'Generated filename and current filename are identical.' \
-      if File.basename(@file) == File.basename(file)
+    raise 'Generated filename and current filename are identical.' if
+      File.basename(@file) == File.basename(file)
 
-    status('Renaming to ' + file.sub(/^\.\//, '') + '...')
-    File.rename(@file, file)
+    output('FILENAME', file.sub(/^\.\//, ''))
+    raise 'File with generated name already exists.' if File.exist?(file)
+
+    @file = file
+  end
+
+  def finalise
+    if @write
+      clear_tags
+
+      @tags.each do |tag, val|
+        val.each do |val|
+          write_tag(tag, val)
+        end
+      end
+    end
+
+    File.rename(@origfile, @file) unless @file == @origfile
   end
 end
 
 # Subclass of VorbisComments containing methods unique to FLAC files.
 class FLAC < VorbisComments
   def read_tag(tag)
-    %x(metaflac --show-tag=#{tag} -- '#{esc(@file)}').chomp
+    %x(metaflac --show-tag=#{tag} -- '#{esc(@origfile)}').chomp
   end
 
   def clear_tags
-    %x{metaflac --remove-all-tags -- '#{esc(@file)}'}
+    %x{metaflac --remove-all-tags -- '#{esc(@origfile)}'}
   end
 
-  def write_tag(tag, value)
-    %x{metaflac --set-tag=#{tag}='#{esc(value)}' -- '#{esc(@file)}'}
+  def write_tag(tag, val)
+    %x{metaflac --set-tag=#{tag}='#{esc(val)}' -- '#{esc(@origfile)}'}
   end
 end
 
 # Subclass of VorbisComments containing methods unique to Vorbis files.
 class Vorbis < VorbisComments
   def read_tag(tag)
-    %x(vorbiscomment -l -- '#{esc(@file)}' | grep '#{tag}').chomp
+    %x(vorbiscomment -l -- '#{esc(@origfile)}' | grep '^#{tag}=').chomp
   end
 
   def clear_tags
-    %x{vorbiscomment -w -t '' -- '#{esc(@file)}' 2>/dev/null}
+    %x{vorbiscomment -w -t '' -- '#{esc(@origfile)}' 2>/dev/null}
   end
 
-  def write_tag(tag, value)
-    %x{vorbiscomment -a -t #{tag}='#{esc(value)}' -- '#{esc(@file)}'}
+  def write_tag(tag, val)
+    %x{vorbiscomment -a -t #{tag}='#{esc(val)}' -- '#{esc(@origfile)}'}
   end
 end
 
 # Class for ID3 tags; used by MP3 files.
 class ID3
-  attr_reader :file, :tags
-
   # Possible tags.
-  TAGS = Hash['TITLE'   => :TIT2,
-              'ALBUM'   => :TALB,
-              'TRACK'   => :TRCK,
+  TAGS = Hash['ALBUM'   => :TALB,
               'ARTIST'  => :TPE1,
-              'YEAR'    => :TYER,
-              'COMMENT' => :COMM]
+              'COMMENT' => :COMM,
+              'TITLE'   => :TIT2,
+              'TRACK'   => :TRCK,
+              'YEAR'    => :TYER]
 
   # Map scheme keys to tags.
   KEYS = Hash['a' => 'ARTIST',
@@ -335,252 +308,207 @@ class ID3
               'n' => 'TRACK',
               't' => 'TITLE']
 
-  # Method for outputting a tag and its corresponding value.
-  def output(tag, value)
-    puts '  ' + colcyn(tag) + spacing(TAGS.keys, tag) + value
-  end
-
-  # Method for initialising a new object.
   def initialize(file)
-    @file = file
+    @file = @origfile = file
     @tags = ID3Lib::Tag.new(@file)
+    @write = false
   end
 
-  # Method for writing tags.
-  def write_tags
-    if @tags.empty? or (@tags.length == 1 and @tags.frame_text(:TLEN))
-      @tags.strip!
-    else
-      @tags.update!
-    end
-  end
-
-  # Method for displaying all tags.
   def view
     raise 'No tags are set.' if @tags.empty?
 
     TAGS.each do |tag, frame|
-      value = @tags.frame_text(frame)
-      output(tag, value) unless value.nil?
+      val = @tags.frame_text(frame)
+      output(tag, val) unless val.nil?
     end
   end
 
-  # Method for displaying certain tags.
   def view_tag(arg)
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        tag = arg.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
+    tag = arg.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
 
-        value = @tags.frame_text(TAGS[tag])
-        raise tag + ' tag is not set.' if value.nil?
+    val = @tags.frame_text(TAGS[tag])
+    raise tag + ' tag is not set.' if val.nil?
 
-        output(tag, value)
-      rescue RuntimeError => message
-        warn(message)
-      end
-    end
+    output(tag, val)
   end
 
-  # Method for setting tags.
   def set_tag(arg)
-    status('Setting tags...')
+    arg = arg.split('=', 2)
+    tag = arg.shift.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
 
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        arg = arg.split('=', 2)
-        tag = arg.first.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
+    @tags.set_frame_text(TAGS[tag], arg.to_s)
+    view_tag(tag)
 
-        if arg.length == 1
-          value = ''
-        else
-          value = arg.last
-        end
-
-        @tags.set_frame_text(TAGS[tag], value)
-        view_tag(tag)
-      rescue RuntimeError => message
-        warn(message)
-      end
-    end
+    @write = true
   end
 
-  # Method for generating new tags based on filename.
-  def generate
-    value = File.basename(@file).gsub('_', ' ').sub(/\.mp3$/, '')
-    scheme = namingscheme($opts['scheme'].gsub('_', ' '), value)
+  def generate(scheme)
+    val = File.basename(@file, File.extname(@file)).gsub('_', ' ')
+    scheme = schemesplit(scheme.gsub('_', ' '), val, KEYS.keys.join)
 
-    tags = Array.new
-    values = Array.new
+    tagval = Array.new
 
-    scheme.each do |tag, value|
-      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(tag)
-
-      tags.push(KEYS[tag])
-      values.push(value)
+    scheme.each do |tag, val|
+      tagval << [KEYS[tag], val]
     end
 
-    status('Generating tags...')
-
-    tags.zip(values).each do |arr|
+    tagval.each do |arr|
       @tags.set_frame_text(TAGS[arr.first], arr.last)
       view_tag(arr.first)
     end
+
+    @write = true
   end
 
-  # Method for removing all tags.
   def remove
     raise 'No tags are set.' if @tags.empty?
-    status('Removing tags...')
 
     @tags.clear
+    @write = true
   end
 
-  # Method for removing certain tags.
   def remove_tag(arg)
-    status('Removing tags...')
+    tag = arg.upcase
+    raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
+    raise tag + ' tag is not set.' if @tags.frame_text(TAGS[tag]).nil?
 
-    arg.each do |arg|
-      # Process exceptions within the argument loop, as using the exception in
-      # the file loop may end the argument loop prematurely.
-      begin
-        tag = arg.upcase
-        raise tag + ' is not a valid tag.' unless TAGS.has_key?(tag)
-        raise tag + ' tag is not set.' if @tags.frame_text(TAGS[tag]).nil?
-
-        @tags.remove_frame(TAGS[tag])
-      rescue RuntimeError => message
-        warn(message)
-      end
-    end
+    @tags.remove_frame(TAGS[tag])
+    @write = true
   end
 
-  # Method for renaming files based on tags.
-  def rename
-    file = $opts['scheme']
+  def rename(scheme)
+    file = scheme
 
-    file.scan(/%([a-z])/).flatten.each do |key|
-      raise 'Naming scheme contains an invalid key.' unless KEYS.has_key?(key)
-      raise 'Missing ' + KEYS[key] + ' tag.' \
-        if @tags.frame_text(TAGS[KEYS[key]]).nil?
+    file.scan(/%([#{KEYS.keys.join}])/).flatten.each do |key|
+      raise 'Missing ' + KEYS[key] + ' tag.' if
+        @tags.frame_text(TAGS[KEYS[key]]).nil?
 
       file = file.gsub('%' + key, @tags.frame_text(TAGS[KEYS[key]]))
     end
 
     file = File.dirname(@file) + '/' + file.gsub('/', '_') +
-      @file.sub(/.*\./, '.')
+      File.extname(@file)
 
-    raise 'Generated filename and current filename are identical.' \
-      if File.basename(@file) == File.basename(file)
+    raise 'Generated filename and current filename are identical.' if
+      File.basename(@file) == File.basename(file)
 
-    status('Renaming to ' + file.sub(/^\.\//, '') + '...')
-    File.rename(@file, file)
+    output('FILENAME', file.sub(/^\.\//, ''))
+    raise 'File with generated name already exists.' if File.exist?(file)
+
+    @file = file
+  end
+
+  def finalise
+    if @write
+      if @tags.empty? or (@tags.length == 1 and @tags.frame_text(:TLEN))
+        @tags.strip!
+      else
+        @tags.update!
+      end
+    end
+
+    File.rename(@origfile, @file) unless @file == @origfile
   end
 end
 
-# Display program help if help action is set. If no actions are set, default to
-# either help or view, depending on whether an argument was passed.
-if $opts.has_key?('help') or (!action and ARGV.empty?)
-  puts colyel('Usage:') + ' omptagger ' + colgrn('[options]') + ' ' +
-    colgrn('[files]')
-  puts
-  puts colyel('Options:')
-  puts '  ' + colgrn('--view') + '        ' + colgrn('-v') +
-    '  Display all tags'
-  puts '  ' + colgrn('--view-tag') + '    ' + colgrn('-t') +
-    '  Display a tag ' + colcyn('[required argument: tag]')
-  puts '  ' + colgrn('--set-tag') + '     ' + colgrn('-s') +
-    '  Set a tag ' + colcyn('[required argument: tag=string]')
-  puts '  ' + colgrn('--generate') + '    ' + colgrn('-g') +
-    '  Generate tags based on filename'
-  puts '  ' + colgrn('--preview') + '     ' + colgrn('-p') +
-    '  Preview tags that will be set with generate option'
-  puts '  ' + colgrn('--remove') + '      ' + colgrn('-r') +
-    '  Remove all tags'
-  puts '  ' + colgrn('--remove-tag') + '  ' + colgrn('-d') +
-    '  Remove a tag ' + colcyn('[required argument: tag]')
-  puts '  ' + colgrn('--rename') + '      ' + colgrn('-m') +
-    '  Rename files based on tags'
-  puts '  ' + colgrn('--scheme') + '      ' + colgrn('-n') +
-    '  Allow a file naming scheme to be specified'
-  puts '  ' + colgrn('--no-colour') + '   ' + colgrn('-c') +
-    '  Disable use of colour in program output'
-  puts '  ' + colgrn('--help') + '        ' + colgrn('-h') +
-    '  Display program help'
-  puts
-  puts colyel('Notes:')
-  puts '  ' + colgrn('*') + ' Default file naming scheme is ' +
-    colcyn('Artist - Title') + '.'
-  puts '  ' + colgrn('*') + ' Underscores in filenames are converted to ' +
-    'spaces in tags.'
-  puts '  ' + colgrn('*') + ' Scheme keys: ' + colcyn('%a') + ' - ARTIST, ' +
-    colcyn('%b') + ' - ALBUM, ' + colcyn('%d') + ' - DATE/YEAR,'
-  puts '  ' + '  ' + colcyn('%n') + ' - TRACKNUMBER/TRACK, ' +
-    colcyn('%t') + ' - TITLE.'
-  exit 0
-elsif !action
-  $opts['view'] = ''
+# Parse options.
+actions = Array.new
+options = Array.new
+scheme = '%a - %t'
+GetoptLong.new(
+  ['--view',       '-v', GetoptLong::NO_ARGUMENT],
+  ['--view-tag',   '-t', GetoptLong::REQUIRED_ARGUMENT],
+  ['--set-tag',    '-s', GetoptLong::REQUIRED_ARGUMENT],
+  ['--remove',     '-r', GetoptLong::NO_ARGUMENT],
+  ['--remove-tag', '-d', GetoptLong::REQUIRED_ARGUMENT],
+  ['--generate',   '-g', GetoptLong::NO_ARGUMENT],
+  ['--rename',     '-m', GetoptLong::NO_ARGUMENT],
+  ['--scheme',     '-n', GetoptLong::REQUIRED_ARGUMENT],
+  ['--pretend',    '-p', GetoptLong::NO_ARGUMENT],
+  ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
+  ['--list',       '-l', GetoptLong::NO_ARGUMENT],
+  ['--help',       '-h', GetoptLong::NO_ARGUMENT]
+).each do |opt, arg|
+  opt = opt.sub(/^--/, '').gsub('-', '_').intern
+
+  case opt
+  when :no_colour
+    def colred(str) return str end
+    def colgrn(str) return str end
+    def colyel(str) return str end
+    def colcyn(str) return str end
+  when :scheme
+    scheme = arg
+  when :pretend, :help, :list
+    options << opt
+  when :view_tag, :set_tag, :remove_tag
+    actions << [opt, arg]
+  when :generate, :rename
+    actions << [opt, scheme]
+  else
+    actions << [opt]
+  end
 end
 
-# Treat all remaining arguments as files.
-warn('No files specified.') if ARGV.length.zero?
-ARGV.each do |file|
-  # Process exceptions in order to produce error messages in a custom format
-  # without an excessive number of nested if statements.
-  begin
-    # Output name of file.
-    puts colyel(file)
+# Deal with help and list options. Set a default action if one was not
+# specified. Display error if an action was specified, but no arguments are
+# present.
+if options.include?(:help)
+  help
+elsif options.include?(:list)
+  list
+elsif actions.empty? and ARGV.empty?
+  help
+elsif actions.empty?
+  actions = [[:view]]
+elsif ARGV.empty?
+  puts colred('ERROR:') + ' No files specified.'
+end
 
-    # Verify that file exists.
+# Treat each argument as a file.
+ARGV.each do |file|
+  # Continue with next file if an error is raised.
+  begin
+    # Output filename and verify that file exists.
+    puts colyel(file)
     raise 'File does not exist.' unless File.exist?(file)
 
     # Determine file format.
-    raise 'File has no extension.' if (file =~ /\./).nil?
-    case file.sub(/.*\./, '')
-    when 'flac'
+    case File.extname(file).downcase
+    when '.flac'
       track = FLAC.new(file)
-    when 'ogg'
+    when '.ogg'
       track = Vorbis.new(file)
-    when 'mp3'
+    when '.mp3'
       track = ID3.new(file)
     else
-      raise 'Not a supported file format.' 
+      raise 'File extension not recognised.'
     end
 
-    # Call methods based on the actions set.
-    if $opts.has_key?('set-tag')
-      track.set_tag($opts['set-tag'])
-      track.write_tags
+    # Run specified actions.
+    actions.each do |action|
+      # Continue with next action if an error is raised.
+      begin
+        # Output action name and arguments.
+        puts '  ' + colgrn('Action: ' + action.join(' '))
+
+        # Run action.
+        case action.first
+        when :view, :remove
+          track.send(action.first)
+        when :view_tag, :set_tag, :remove_tag, :generate, :rename
+          track.send(action.first, action.last)
+        end
+      rescue RuntimeError => message
+        puts '    ' + colred('ERROR:') + ' ' + message
+      end
     end
 
-    if $opts.has_key?('remove')
-      track.remove
-      track.write_tags
-    elsif $opts.has_key?('remove-tag')
-      track.remove_tag($opts['remove-tag'])
-      track.write_tags
-    end
-
-    if $opts.has_key?('preview')
-      track.generate
-    elsif $opts.has_key?('generate')
-      track.generate
-      track.write_tags
-    elsif $opts.has_key?('rename')
-      track.rename
-    end
-
-    if $opts.has_key?('view')
-      track.view
-    elsif $opts.has_key?('view-tag')
-      track.view_tag($opts['view-tag'])
-    end
+    # Finalise changes.
+    track.finalise unless options.include?(:pretend)
   rescue RuntimeError => message
-    warn(message)
+    puts '  ' + colred('ERROR:') + ' ' + message
   end
 end
