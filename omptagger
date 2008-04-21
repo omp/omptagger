@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 1.0]
+# omptagger [version 1.0.1]
 # http://dev.gentoo.org/~omp/omptagger/
 #
 # Copyright 2007 David Shakaryan <omp@gentoo.org>
@@ -74,8 +74,7 @@ def help
              ['--pretend     -p', 'Do not make any actual changes'],
              ['--no-colour   -c', 'Disable use of colour in output'],
              ['--list        -l', 'Display list of available tags'],
-             ['--help        -h', 'Display help information'],
-             ['--rename      -m', 'Generate filename based on tags']]
+             ['--help        -h', 'Display help information']]
   notes = ['The default file naming scheme is Artist - Title.',
            'Schemes must be specified prior to actions that use them.',
            'Underscores in filenames are converted to spaces in tags.']
@@ -279,7 +278,7 @@ end
 # Subclass of VorbisComments containing methods unique to Vorbis files.
 class Vorbis < VorbisComments
   def read_tag(tag)
-    %x(vorbiscomment -l -- '#{esc(@origfile)}' | grep '^#{tag}=').chomp
+    %x(vorbiscomment -l -- '#{esc(@origfile)}' | grep -i '^#{tag}=').chomp
   end
 
   def clear_tags
