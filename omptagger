@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 1.0.1]
+# omptagger [version 1.0.2]
 # http://dev.gentoo.org/~omp/omptagger/
 #
-# Copyright 2007 David Shakaryan <omp@gentoo.org>
+# Copyright 2007-2008 David Shakaryan <omp@gentoo.org>
 # Distributed under the terms of the GNU General Public License v3.
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
 #
@@ -278,7 +278,7 @@ end
 # Subclass of VorbisComments containing methods unique to Vorbis files.
 class Vorbis < VorbisComments
   def read_tag(tag)
-    %x(vorbiscomment -l -- '#{esc(@origfile)}' | grep -i '^#{tag}=').chomp
+    %x(vorbiscomment -l -- '#{esc(@origfile)}').scan(/#{tag}=.*/i).join("\n")
   end
 
   def clear_tags
