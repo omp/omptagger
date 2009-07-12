@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 1.0.2]
+# omptagger [version 1.0.3]
 # http://dev.gentoo.org/~omp/omptagger/
 #
-# Copyright 2007-2008 David Shakaryan <omp@gentoo.org>
+# Copyright 2007-2009 David Shakaryan <omp@gentoo.org>
 # Distributed under the terms of the GNU General Public License v3.
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
 #
@@ -63,21 +63,24 @@ end
 
 # Display help information.
 def help
-  options = [['--view        -v', 'View all tags'],
-             ['--view-tag    -t', 'View a tag'],
-             ['--set-tag     -s', 'Set a tag'],
-             ['--remove      -r', 'Remove all tags'],
-             ['--remove-tag  -d', 'Remove a tag'],
-             ['--generate    -g', 'Generate tags based on filename'],
-             ['--rename      -m', 'Generate filename based on tags'],
-             ['--scheme      -n', 'Specify a file naming scheme'],
-             ['--pretend     -p', 'Do not make any actual changes'],
-             ['--no-colour   -c', 'Disable use of colour in output'],
-             ['--list        -l', 'Display list of available tags'],
-             ['--help        -h', 'Display help information']]
-  notes = ['The default file naming scheme is Artist - Title.',
-           'Schemes must be specified prior to actions that use them.',
-           'Underscores in filenames are converted to spaces in tags.']
+  options = [
+    ['--view        -v', 'View all tags'],
+    ['--view-tag    -t', 'View a tag'],
+    ['--set-tag     -s', 'Set a tag'],
+    ['--remove      -r', 'Remove all tags'],
+    ['--remove-tag  -d', 'Remove a tag'],
+    ['--generate    -g', 'Generate tags based on filename'],
+    ['--rename      -m', 'Generate filename based on tags'],
+    ['--scheme      -n', 'Specify a file naming scheme'],
+    ['--pretend     -p', 'Do not make any actual changes'],
+    ['--no-colour   -c', 'Disable use of colour in output'],
+    ['--list        -l', 'Display list of available tags'],
+    ['--help        -h', 'Display help information']]
+  notes = [
+    'The default file naming scheme is Artist - Title.',
+    'Schemes must be specified prior to actions that use them.',
+    'Underscores in filenames are converted to spaces in tags.',
+    'Backslashes in filenames are converted to forward slashes in tags.']
 
   puts colyel('Usage:') + ' omptagger ' + colgrn('[options] [files]')
   puts
@@ -208,8 +211,10 @@ class VorbisComments
   end
 
   def generate(scheme)
-    val = File.basename(@file, File.extname(@file)).gsub('_', ' ')
-    scheme = schemesplit(scheme.gsub('_', ' '), val, KEYS.keys.join)
+    val = File.basename(@file, File.extname(@file))
+    val = val.gsub('_', ' ').gsub('\\', '/')
+    scheme = scheme.gsub('_', ' ').gsub('\\', '/')
+    scheme = schemesplit(scheme, val, KEYS.keys.join)
 
     tagval = Array.new
 
