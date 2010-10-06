@@ -101,3 +101,25 @@ list if options.include?(:list)
 help if actions.empty?
 
 puts 'No files specified.' if ARGV.empty?
+
+ARGV.each do |file|
+  puts file
+
+  # Use absolute path internally.
+  file = File.expand_path(file)
+
+  begin
+    raise 'File does not exist.' unless File.exist?(file)
+
+    case File.extname(file).downcase
+    when '.flac'
+      puts '  Treat this as a FLAC file.'
+    when '.ogg'
+      puts '  Treat this as a Vorbis file.'
+    else
+      raise 'File extension not recognised.'
+    end
+  rescue RuntimeError => message
+    puts '  ' + message
+  end
+end
