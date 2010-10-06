@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 #
-# omptagger [version 1.0.3]
-# http://dev.gentoo.org/~omp/omptagger/
+# omptagger
+# http://github.com/omp/omptagger
 #
-# Copyright 2007-2009 David Shakaryan <omp@gentoo.org>
+# Copyright 2007-2010 David Vazgenovich Shakaryan <dvshakaryan@gmail.com>
 # Distributed under the terms of the GNU General Public License v3.
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
 #
@@ -349,8 +349,10 @@ class ID3
   end
 
   def generate(scheme)
-    val = File.basename(@file, File.extname(@file)).gsub('_', ' ')
-    scheme = schemesplit(scheme.gsub('_', ' '), val, KEYS.keys.join)
+    val = File.basename(@file, File.extname(@file))
+    val = val.gsub('_', ' ').gsub('\\', '/')
+    scheme = scheme.gsub('_', ' ').gsub('\\', '/')
+    scheme = schemesplit(scheme, val, KEYS.keys.join)
 
     tagval = Array.new
 
