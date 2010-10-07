@@ -9,6 +9,45 @@
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
 
 require 'getoptlong'
+require 'rubygems'
+require 'TagLib'
+
+class Metadata
+  def output(tag, val)
+    spacing = 2 + @tags.keys.inject(0) do |length, object|
+      object.length > length ? object.length : length
+    end - tag.length
+
+    puts '    ' + tag + ' ' * spacing + val
+  end
+end
+
+class VorbisComment < Metadata
+  def view
+    puts '  Viewing tags:'
+
+    if @tags.empty?
+      puts '    No tags are set.'
+      return
+    end
+
+    @tags.sort.each do |tag, val|
+      val.each do |val|
+        output(tag, val)
+      end
+    end
+  end
+end
+
+class FLAC < VorbisComment
+  def initialize(file)
+    @filename = File.expand_path(file)
+    @write = false
+
+    @file = TagLib::FLAC::File.new(file)
+    @tags = @file.xiphComment.fieldListMap.hash
+  end
+end
 
 def help
   puts <<-end
@@ -92,7 +131,7 @@ GetoptLong.new(
   when :generate, :rename
     actions << [option, scheme]
   else
-    actions << option
+    actions << [option]
   end
 end
 
@@ -100,26 +139,29 @@ help if options.include?(:help)
 list if options.include?(:list)
 help if actions.empty?
 
-puts 'No files specified.' if ARGV.empty?
+if ARGV.empty?
+  puts 'No files specified.'
+  exit
+end
 
 ARGV.each do |file|
-  puts file
-
-  # Use absolute path internally.
-  file = File.expand_path(file)
-
   begin
     raise 'File does not exist.' unless File.exist?(file)
 
     case File.extname(file).downcase
     when '.flac'
-      puts '  Treat this as a FLAC file.'
-    when '.ogg'
-      puts '  Treat this as a Vorbis file.'
+      track = FLAC.new(file)
     else
       raise 'File extension not recognised.'
     end
+
+    puts file + ':'
+
+    actions.each do |action|
+      track.send(*action)
+    end
   rescue RuntimeError => message
-    puts '  ' + message
+    $stderr.puts file + ':'
+    $stderr.puts '  ' + message
   end
 end
