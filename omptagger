@@ -24,16 +24,31 @@ class Metadata
   def output(tag, val, spacing = 2)
     puts '    ' + tag + ' ' * spacing + val
   end
-end
 
-class VorbisComment < Metadata
+  private :output
+
   def view
     puts '  Viewing tags:'
 
     if @tags.empty?
       puts '    No tags set.'
-      return
+      return true
     end
+  end
+
+  def viewtag(tag)
+    puts '  Viewing ' + tag + ' tag:'
+
+    unless @tags.has_key? tag
+      puts '    Tag not set.'
+      return true
+    end
+  end
+end
+
+class VorbisComment < Metadata
+  def view
+    return if super
 
     @tags.sort.each do |tag, val|
       val.each do |val|
@@ -43,12 +58,7 @@ class VorbisComment < Metadata
   end
 
   def viewtag(tag)
-    puts '  Viewing ' + tag + ' tag:'
-
-    unless @tags.has_key? tag
-      puts '    Tag not set.'
-      return
-    end
+    return if super
 
     @tags[tag].each do |val|
       output(tag, val)
