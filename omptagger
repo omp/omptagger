@@ -40,7 +40,7 @@ class Metadata
 
     if @tags.empty?
       puts '    No tags set.'
-      return true
+      throw :next
     end
   end
 
@@ -49,14 +49,14 @@ class Metadata
 
     unless @tags.has_key? tag
       puts '    Tag not set.'
-      return true
+      throw :next
     end
   end
 end
 
 class VorbisComment < Metadata
   def view
-    return if super
+    super
 
     @tags.sort.each do |tag, val|
       val.each do |val|
@@ -66,7 +66,7 @@ class VorbisComment < Metadata
   end
 
   def viewtag(tag)
-    return if super
+    super
 
     @tags[tag].each do |val|
       output(tag, val)
@@ -186,7 +186,9 @@ ARGV.each do |file|
     puts file + ':'
 
     actions.each do |action|
-      track.send(*action)
+      catch :next do
+        track.send(*action)
+      end
     end
   rescue RuntimeError => message
     $stderr.puts file + ':'
