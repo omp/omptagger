@@ -27,7 +27,7 @@ class VorbisComment < Metadata
     puts '  Viewing tags:'
 
     if @tags.empty?
-      puts '    No tags are set.'
+      puts '    No tags set.'
       return
     end
 
@@ -35,6 +35,19 @@ class VorbisComment < Metadata
       val.each do |val|
         output(tag, val)
       end
+    end
+  end
+
+  def viewtag(tag)
+    puts '  Viewing ' + tag + ' tag:'
+
+    unless @tags.has_key? tag
+      puts '    Tag not set.'
+      return
+    end
+
+    @tags[tag].each do |val|
+      output(tag, val)
     end
   end
 end
