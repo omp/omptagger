@@ -10,19 +10,20 @@
 
 require 'getoptlong'
 require 'rubygems'
+require 'filemagic'
 require 'TagLib'
 
 class Hash
   def longest_key_length
-    self.keys.inject(0) do |length, key|
-      key.length > length ? key.length : length
+    self.keys.inject(0) do |longest, key|
+      key.length > longest ? key.length : longest
     end
   end
 end
 
 class Metadata
-  def output(tag, val, spacing = 2)
-    puts '    ' + tag + ' ' * spacing + val
+  def output(tag, val, padding = 0)
+    puts '    ' + tag + ' ' * (2 + padding) + val
   end
 
   private :output
@@ -52,7 +53,7 @@ class VorbisComment < Metadata
 
     @tags.sort.each do |tag, val|
       val.each do |val|
-        output(tag, val, 2 + @tags.longest_key_length - tag.length)
+        output(tag, val, @tags.longest_key_length - tag.length)
       end
     end
   end
@@ -161,12 +162,15 @@ if ARGV.empty?
   exit
 end
 
+mime = FileMagic.mime
+mime.simplified = true
+
 ARGV.each do |file|
   begin
     raise 'File does not exist.' unless File.exist?(file)
 
-    case File.extname(file).downcase
-    when '.flac'
+    case mime.file(file)
+    when 'audio/x-flac'
       track = FLAC.new(file)
     else
       raise 'File extension not recognised.'
