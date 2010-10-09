@@ -20,6 +20,14 @@ require 'rubygems'
 require 'TagLib'
 require 'filemagic'
 
+class Hash
+  def longest_key_length
+    self.keys.inject(0) do |longest, key|
+      key.length > longest ? key.length : longest
+    end
+  end
+end
+
 class String
   def colourise(colour)
     case colour
@@ -56,14 +64,6 @@ class String
       return indent + self.colourise(colour)
     else
       return indent + self
-    end
-  end
-end
-
-class Hash
-  def longest_key_length
-    self.keys.inject(0) do |longest, key|
-      key.length > longest ? key.length : longest
     end
   end
 end
@@ -164,9 +164,38 @@ Options:
   exit
 end
 
+def info
+  puts <<-end
+Actions:
+  * Multiple actions can be chained together.
+  * Actions are executed in the order they are specified.
+  * Example: omptagger --view --set-tag ALBUM="Foobar" --view
+
+Schemes:
+  * The default file naming scheme is Track - Artist - Title.
+  * Schemes must be specified prior to actions that use them.
+  * Example: omptagger --scheme '%a - %t' --generate
+  * %a - Artist    %* - Wildcard
+    %b - Album     %% - Per cent sign
+    %d - Date
+    %n - Track
+    %t - Title
+
+Supported Tags:
+  * Vorbis comments: Any field name allowed by specification.
+  * ID3v2 frames: Artist, album, title, track, year.
+
+Tag Generation:
+  * Underscores in filenames are converted to spaces in tags.
+  * Backslashes in filenames are converted to forward slashes in tags.
+  end
+
+  exit
+end
+
 actions = Array.new
 options = Array.new
-scheme  = '%a - %t'
+scheme  = '%n - %a - %t'
 
 GetoptLong.new(
   ['--view',       '-v', GetoptLong::NO_ARGUMENT],
