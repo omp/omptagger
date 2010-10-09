@@ -169,7 +169,7 @@ def info
 Actions:
   * Multiple actions can be chained together.
   * Actions are executed in the order they are specified.
-  * Example: omptagger --view --set-tag ALBUM="Foobar" --view
+  * Example: omptagger --view --set-tag ALBUM='Foobar' --view
 
 Schemes:
   * The default file naming scheme is Track - Artist - Title.
