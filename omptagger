@@ -12,12 +12,16 @@ require 'getoptlong'
 require 'rubygems'
 require 'TagLib'
 
-class Metadata
-  def output(tag, val)
-    spacing = 2 + @tags.keys.inject(0) do |length, object|
-      object.length > length ? object.length : length
-    end - tag.length
+class Hash
+  def longest_key_length
+    self.keys.inject(0) do |length, key|
+      key.length > length ? key.length : length
+    end
+  end
+end
 
+class Metadata
+  def output(tag, val, spacing = 2)
     puts '    ' + tag + ' ' * spacing + val
   end
 end
@@ -33,7 +37,7 @@ class VorbisComment < Metadata
 
     @tags.sort.each do |tag, val|
       val.each do |val|
-        output(tag, val)
+        output(tag, val, 2 + @tags.longest_key_length - tag.length)
       end
     end
   end
