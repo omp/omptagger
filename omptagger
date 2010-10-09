@@ -7,11 +7,18 @@
 # Copyright 2007-2010 David Vazgenovich Shakaryan <dvshakaryan@gmail.com>
 # Distributed under the terms of the GNU General Public License v3.
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
+#
+# Dependencies:
+#   Ruby            http://www.ruby-lang.org/
+#   RubyGems        http://rubygems.org/
+#   rtaglib         http://rubygems.org/gems/rtaglib
+#   ruby-filemagic  http://rubygems.org/gems/ruby-filemagic
+#   TagLib          http://developer.kde.org/~wheeler/taglib.html
 
 require 'getoptlong'
 require 'rubygems'
-require 'filemagic'
 require 'TagLib'
+require 'filemagic'
 
 class Hash
   def longest_key_length
