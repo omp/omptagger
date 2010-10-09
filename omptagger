@@ -56,19 +56,20 @@ Usage: omptagger [options] [files]
 Options:
   --view        -v  View all tags
   --view-tag    -t  View a tag
+  --add-tag     -a  Add a tag
   --set-tag     -s  Set a tag
   --remove      -r  Remove all tags
   --remove-tag  -d  Remove a tag
   --generate    -g  Generate tags based on filename
   --rename      -m  Generate filename based on tags
   --scheme      -n  Specify a file naming scheme
-  --pretend     -p  Do not make any actual changes
-  --list        -l  Display list of available tags
+  --list        -l  Display available scheme keys
   --help        -h  Display help information
+  --pretend     -p  Do not finalise changes
 
 Notes:
+  * Actions are executed in the order they are specified.
   * The default file naming scheme is Artist - Title.
-  * Schemes must be specified prior to actions that use them.
   end
 
   exit
@@ -76,27 +77,16 @@ end
 
 def list
   puts <<-end
-┌────────────────────────┐
-│ Keys   Vorbis Comments │
-├────────────────────────┤
-│ %a     Artist          │
-│ %b     Album           │
-│ %d     Date            │
-│ %n     TrackNumber     │
-│ %t     Title           │
-│ %*     Wildcard        │
-├────────────────────────┤
-│        Contact         │
-│        Copyright       │
-│        Description     │
-│        Genre           │
-│        ISRC            │
-│        License         │
-│        Location        │
-│        Organization    │
-│        Performer       │
-│        Version         │
-└────────────────────────┘
+Keys   Vorbis Comments   ID3v2 Frames
+----   ---------------   -------------
+ %a    Artist            Artist
+ %b    Album             Album
+ %d    Date              Year
+ %n    TrackNumber       Track
+ %t    Title             Title
+----   ---------------   -------------
+ %*    Wildcard          Wildcard
+ %%    Per cent sign     Per cent sign
   end
 
   exit
