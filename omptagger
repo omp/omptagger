@@ -120,7 +120,12 @@ class Metadata
 
     field.upcase!
 
-    @tags[field] << value
+    if @tags.has_key?(field)
+      @tags[field] << value
+    else
+      @tags[field] = value
+    end
+
     output(field, value)
 
     @write = true
