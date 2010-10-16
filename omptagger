@@ -141,7 +141,9 @@ class MP3 < Metadata
   end
 
   def output(tag, val, padding = 0)
-    super(tag, val.to_s, padding)
+    val = val.to_s
+
+    super
   end
 end
 
