@@ -118,6 +118,12 @@ class Metadata
   def addtag(field, value)
     puts ('Adding ' + field + ' tag:').format(:action)
 
+    unless valid_field?(field)
+      puts 'Invalid field name.'.format(:info)
+      puts 'See Vorbis comment specification.'.format(:info)
+      throw :next
+    end
+
     field.upcase!
 
     if @tags.has_key?(field)
@@ -133,6 +139,12 @@ class Metadata
 
   def settag(field, value)
     puts ('Setting ' + field + ' tag:').format(:action)
+
+    unless valid_field?(field)
+      puts 'Invalid field name.'.format(:info)
+      puts 'See Vorbis comment specification.'.format(:info)
+      throw :next
+    end
 
     field.upcase!
 
@@ -160,6 +172,18 @@ class VorbisComment < Metadata
     end
 
     @file.save
+  end
+
+  def valid_field?(field)
+    valid = (32..125).collect do |character|
+      character.chr
+    end
+
+    field.scan(/./).each do |character|
+      return false unless valid.include?(character) 
+    end
+
+    return true
   end
 end
 
