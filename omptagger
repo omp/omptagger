@@ -139,6 +139,15 @@ class Vorbis < VorbisComment
   end
 end
 
+class MP3 < Metadata
+  def initialize(file)
+    super
+
+    @file = TagLib::MPEG::File.new(file)
+    @tags = @file.ID3v2Tag.frameListMap.hash
+  end
+end
+
 def help
   puts <<-end
 Usage: omptagger [actions/options] [files]
@@ -259,6 +268,8 @@ ARGV.each do |file|
       track = FLAC.new(file)
     when 'application/ogg'
       track = Vorbis.new(file)
+    when 'audio/mpeg'
+      track = MP3.new(file)
     else
       raise 'File extension not recognised.'
     end
