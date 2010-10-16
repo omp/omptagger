@@ -29,6 +29,8 @@ class Hash
 end
 
 class String
+  @@colour = true
+
   def colourise(colour)
     case colour
     when :green
@@ -112,9 +114,48 @@ class Metadata
       output(tag, val.to_s)
     end
   end
+
+  def addtag(field, value)
+    puts ('Adding ' + field + ' tag:').format(:action)
+
+    field.upcase!
+
+    @tags[field] << value
+    output(field, value)
+
+    @write = true
+  end
+
+  def settag(field, value)
+    puts ('Setting ' + field + ' tag:').format(:action)
+
+    field.upcase!
+
+    @tags[field] = [value]
+    output(field, value)
+
+    @write = true
+  end
 end
 
 class VorbisComment < Metadata
+  def save
+    return unless @write
+
+    read.each_key do |field|
+      metadata.removeField(TagLib::String.new(field))
+    end
+
+    @tags.each do |field, value|
+      field = TagLib::String.new(field)
+
+      value.each do |value|
+        metadata.addField(field, TagLib::String.new(value), false)
+      end
+    end
+
+    @file.save
+  end
 end
 
 class FLAC < VorbisComment
@@ -124,8 +165,12 @@ class FLAC < VorbisComment
     TagLib::FLAC::File.new(file)
   end
 
+  def metadata
+    @file.xiphComment
+  end
+
   def read
-    @file.xiphComment.fieldListMap.hash
+    metadata.fieldListMap.hash
   end
 end
 
@@ -136,8 +181,12 @@ class Vorbis < VorbisComment
     TagLib::Vorbis::File.new(file)
   end
 
+  def metadata
+    @file.tag
+  end
+
   def read
-    @file.tag.fieldListMap.hash
+    metadata.fieldListMap.hash
   end
 end
 
@@ -239,8 +288,10 @@ GetoptLong.new(
     scheme = argument
   when :nocolour, :pretend, :help, :info
     options << option
-  when :viewtag, :addtag, :settag, :removetag
+  when :viewtag, :removetag
     actions << [option, argument]
+  when :addtag, :settag
+    actions << [option, argument.split('=', 2)].flatten
   when :generate, :rename
     actions << [option, scheme]
   else
@@ -260,10 +311,6 @@ end
 if options.include?(:nocolour)
   class String
     @@colour = false
-  end
-else
-  class String
-    @@colour = true
   end
 end
 
@@ -290,6 +337,8 @@ ARGV.each do |file|
         track.send(*action)
       end
     end
+
+    track.save unless options.include?(:pretend)
   rescue RuntimeError => message
     $stderr.puts $0 + ': ' + file + ': ' + message
   end
