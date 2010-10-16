@@ -89,21 +89,6 @@ class Metadata
       puts 'No tags set.'.format(:info)
       throw :next
     end
-  end
-
-  def viewtag(tag)
-    puts ('Viewing ' + tag + ' tag:').format(:action)
-
-    unless @tags.has_key? tag
-      puts 'Tag not set.'.format(:info)
-      throw :next
-    end
-  end
-end
-
-class VorbisComment < Metadata
-  def view
-    super
 
     @tags.sort.each do |tag, val|
       val.each do |val|
@@ -113,12 +98,20 @@ class VorbisComment < Metadata
   end
 
   def viewtag(tag)
-    super
+    puts ('Viewing ' + tag + ' tag:').format(:action)
+
+    unless @tags.has_key? tag
+      puts 'Tag not set.'.format(:info)
+      throw :next
+    end
 
     @tags[tag].each do |val|
-      output(tag, val)
+      output(tag, val.to_s)
     end
   end
+end
+
+class VorbisComment < Metadata
 end
 
 class FLAC < VorbisComment
@@ -145,6 +138,10 @@ class MP3 < Metadata
 
     @file = TagLib::MPEG::File.new(file)
     @tags = @file.ID3v2Tag.frameListMap.hash
+  end
+
+  def output(tag, val, padding = 0)
+    super(tag, val.to_s, padding)
   end
 end
 
