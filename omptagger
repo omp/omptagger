@@ -80,6 +80,9 @@ class Metadata
 
     @filename = File.expand_path(file)
     @write = false
+
+    @file = open(file)
+    @tags = read
   end
 
   def view
@@ -115,35 +118,42 @@ class VorbisComment < Metadata
 end
 
 class FLAC < VorbisComment
-  def initialize(file)
-    super
+  private
 
-    @file = TagLib::FLAC::File.new(file)
-    @tags = @file.xiphComment.fieldListMap.hash
+  def open(file)
+    return TagLib::FLAC::File.new(file)
+  end
+
+  def read
+    return @file.xiphComment.fieldListMap.hash
   end
 end
 
 class Vorbis < VorbisComment
-  def initialize(file)
-    super
+  private
 
-    @file = TagLib::Vorbis::File.new(file)
-    @tags = @file.tag.fieldListMap.hash
+  def open(file)
+    return TagLib::Vorbis::File.new(file)
+  end
+
+  def read
+    return @file.tag.fieldListMap.hash
   end
 end
 
 class MP3 < Metadata
-  def initialize(file)
-    super
+  private
 
-    @file = TagLib::MPEG::File.new(file)
-    @tags = @file.ID3v2Tag.frameListMap.hash
+  def open(file)
+    return TagLib::MPEG::File.new(file)
   end
 
-  def output(tag, val, padding = 0)
-    val = val.to_s
+  def read
+    metadata = @file.ID3v2Tag.frameListMap.hash
 
-    super
+    return metadata.each do |field, value|
+      metadata[field] = value.collect do |x| x.to_s end
+    end
   end
 end
 
