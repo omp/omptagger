@@ -20,6 +20,24 @@ require 'rubygems'
 require 'TagLib'
 require 'filemagic'
 
+module Output
+  def Output.file(file)
+    puts (file + ':').colourise(:yellow)
+  end
+
+  def Output.action(action)
+    puts '  ' + (action + ':').colourise(:green)
+  end
+
+  def Output.info(info)
+    puts '    ' + info
+  end
+
+  def Output.field(field, value, padding = 0)
+    puts '    ' + field.colourise(:cyan) + ' ' * (2 + padding) + value
+  end
+end
+
 class Hash
   def longest_key_length
     self.keys.inject(0) do |longest, key|
@@ -72,7 +90,7 @@ end
 
 class Metadata
   def initialize(file)
-    puts (file + ':').format(:file)
+    Output.file(file)
 
     @filename = File.expand_path(file)
     @write = false
@@ -82,39 +100,38 @@ class Metadata
   end
 
   def view
-    puts 'Viewing all tags:'.format(:action)
+    Output.action('Viewing all tags')
 
     if @metadata.empty?
-      puts 'No tags set.'.format(:info)
+      Output.info('No tags set.')
       throw :next
     end
 
     @metadata.sort.each do |field, value|
       value.each do |value|
-        output(field, value, @metadata.longest_key_length - field.length)
+        Output.field(field, value, @metadata.longest_key_length - field.length)
       end
     end
   end
 
   def viewtag(field)
-    puts ('Viewing ' + field + ' tag:').format(:action)
+    Output.action('Viewing ' + field + ' tag')
 
     unless @metadata.has_key? field
-      puts 'Tag not set.'.format(:info)
+      Output.info('Tag not set.')
       throw :next
     end
 
     @metadata[field].each do |value|
-      output(field, value.to_s)
+      Output.field(field, value)
     end
   end
 
   def addtag(field, value)
-    puts ('Adding ' + field + ' tag:').format(:action)
+    Output.action('Adding ' + field + ' tag')
 
     unless valid_field?(field)
-      puts 'Invalid field name.'.format(:info)
-      puts 'See Vorbis comment specification.'.format(:info)
+      Output.info('Invalid field name; see Vorbis comment specification.')
       throw :next
     end
 
@@ -126,60 +143,53 @@ class Metadata
       @metadata[field] = value
     end
 
-    output(field, value)
+    Output.field(field, value)
 
     @write = true
   end
 
   def settag(field, value)
-    puts ('Setting ' + field + ' tag:').format(:action)
+    Output.action('Setting ' + field + ' tag')
 
     unless valid_field?(field)
-      puts 'Invalid field name.'.format(:info)
-      puts 'See Vorbis comment specification.'.format(:info)
+      Output.info('Invalid field name; see Vorbis comment specification.')
       throw :next
     end
 
     field.upcase!
 
     @metadata[field] = [value]
-    output(field, value)
+    Output.field(field, value)
 
     @write = true
   end
 
   def remove
-    puts ('Removing all tags:').format(:action)
+    Output.action('Removing all tags')
 
     if @metadata.empty?
-      puts 'No tags set.'.format(:info)
+      Output.info('No tags set.')
       throw :next
     end
 
     @metadata.clear
-    puts 'Removed.'.format(:info)
+    Output.info('Removed')
 
     @write = true
   end
 
   def removetag(field)
-    puts ('Removing ' + field + ' tag:').format(:action)
+    Output.action('Removing ' + field + ' tag')
 
     unless @metadata.has_key? field
-      puts 'Tag not set.'.format(:info)
+      Output.info('Tag not set.')
       throw :next
     end
 
     @metadata.delete(field)
-    puts 'Removed.'.format(:info)
+    Output.info('Removed')
 
     @write = true
-  end
-
-  private
-
-  def output(tag, val, padding = 0)
-    puts tag.format(:tag) + ' ' * (2 + padding) + val
   end
 end
 
