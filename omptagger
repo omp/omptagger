@@ -131,7 +131,7 @@ class Metadata
   end
 
   def view
-    Output.action('Viewing all tags')
+    Output.action('Viewing all fields')
 
     next_if_no_fields_set
 
@@ -143,7 +143,9 @@ class Metadata
   end
 
   def viewtag(field)
-    Output.action('Viewing ' + field + ' tag')
+    field.upcase!
+
+    Output.action('Viewing ' + field + ' field')
 
     next_if_field_not_set(field)
 
@@ -153,11 +155,11 @@ class Metadata
   end
 
   def addtag(field, value)
-    Output.action('Adding ' + field + ' tag')
+    field.upcase!
+
+    Output.action('Adding ' + field + ' field')
 
     next_if_not_valid_field(field)
-
-    field.upcase!
 
     if @metadata.has_key?(field)
       @metadata[field] << value
@@ -171,11 +173,11 @@ class Metadata
   end
 
   def settag(field, value)
-    Output.action('Setting ' + field + ' tag')
+    field.upcase!
+
+    Output.action('Setting ' + field + ' field')
 
     next_if_not_valid_field(field)
-
-    field.upcase!
 
     @metadata[field] = [value]
     Output.field(field, value)
@@ -184,7 +186,7 @@ class Metadata
   end
 
   def remove
-    Output.action('Removing all tags')
+    Output.action('Removing all fields')
 
     next_if_no_fields_set
 
@@ -195,7 +197,9 @@ class Metadata
   end
 
   def removetag(field)
-    Output.action('Removing ' + field + ' tag')
+    field.upcase!
+
+    Output.action('Removing ' + field + ' field')
 
     next_if_field_not_set(field)
 
@@ -344,7 +348,7 @@ GetoptLong.new(
   when :nocolour, :pretend
     options << option
   when :viewtag, :removetag
-    actions << [option, argument]
+    actions << [option, argument.dup]
   when :addtag, :settag
     raise 'Incorrect argument' unless argument.include?('=')
     actions << [option, argument.split('=', 2)].flatten
