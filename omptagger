@@ -158,10 +158,12 @@ class MetadataError < RuntimeError
     case @error
     when :empty
       str = 'No fields set.'
-    when :unset
-      str = 'Field not set.'
     when :invalid
       str = 'Invalid field name.'
+    when :scheme
+      str = 'Filename does not match scheme.'
+    when :unset
+      str = 'Field not set.'
     end
 
     return str
@@ -231,13 +233,13 @@ class Metadata
     @write = true
   end
 
-  def settag(field, value)
+  def settag(field, value, padding = 0)
     field.upcase!
 
     raise MetadataError, :invalid unless valid_field?(field)
 
     @metadata[field] = [value]
-    Output.field(field, value)
+    Output.field(field, value, padding)
 
     @write = true
   end
@@ -270,9 +272,7 @@ class Metadata
     fields = scheme.scan(regexp).flatten
     values = @filename.chomp(File.extname(@filename)).scan(regexp).flatten
 
-    unless fields.length == values.length
-      raise MetadataError, 'Filename does not match naming scheme.'
-    end
+    raise MetadataError, :scheme unless fields.length == values.length
 
     fields.collect! do |field|
       keys[field[1,1]]
