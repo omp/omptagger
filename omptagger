@@ -71,12 +71,6 @@ class String
 end
 
 class Metadata
-  def output(tag, val, padding = 0)
-    puts tag.format(:tag) + ' ' * (2 + padding) + val
-  end
-
-  private :output
-
   def initialize(file)
     puts (file + ':').format(:file)
 
@@ -84,34 +78,34 @@ class Metadata
     @write = false
 
     @file = open(file)
-    @tags = read
+    @metadata = read
   end
 
   def view
     puts 'Viewing all tags:'.format(:action)
 
-    if @tags.empty?
+    if @metadata.empty?
       puts 'No tags set.'.format(:info)
       throw :next
     end
 
-    @tags.sort.each do |tag, val|
-      val.each do |val|
-        output(tag, val, @tags.longest_key_length - tag.length)
+    @metadata.sort.each do |field, value|
+      value.each do |value|
+        output(field, value, @metadata.longest_key_length - field.length)
       end
     end
   end
 
-  def viewtag(tag)
-    puts ('Viewing ' + tag + ' tag:').format(:action)
+  def viewtag(field)
+    puts ('Viewing ' + field + ' tag:').format(:action)
 
-    unless @tags.has_key? tag
+    unless @metadata.has_key? field
       puts 'Tag not set.'.format(:info)
       throw :next
     end
 
-    @tags[tag].each do |val|
-      output(tag, val.to_s)
+    @metadata[field].each do |value|
+      output(field, value.to_s)
     end
   end
 
@@ -126,10 +120,10 @@ class Metadata
 
     field.upcase!
 
-    if @tags.has_key?(field)
-      @tags[field] << value
+    if @metadata.has_key?(field)
+      @metadata[field] << value
     else
-      @tags[field] = value
+      @metadata[field] = value
     end
 
     output(field, value)
@@ -148,10 +142,44 @@ class Metadata
 
     field.upcase!
 
-    @tags[field] = [value]
+    @metadata[field] = [value]
     output(field, value)
 
     @write = true
+  end
+
+  def remove
+    puts ('Removing all tags:').format(:action)
+
+    if @metadata.empty?
+      puts 'No tags set.'.format(:info)
+      throw :next
+    end
+
+    @metadata.clear
+    puts 'Removed.'.format(:info)
+
+    @write = true
+  end
+
+  def removetag(field)
+    puts ('Removing ' + field + ' tag:').format(:action)
+
+    unless @metadata.has_key? field
+      puts 'Tag not set.'.format(:info)
+      throw :next
+    end
+
+    @metadata.delete(field)
+    puts 'Removed.'.format(:info)
+
+    @write = true
+  end
+
+  private
+
+  def output(tag, val, padding = 0)
+    puts tag.format(:tag) + ' ' * (2 + padding) + val
   end
 end
 
@@ -163,7 +191,7 @@ class VorbisComment < Metadata
       metadata.removeField(TagLib::String.new(field))
     end
 
-    @tags.each do |field, value|
+    @metadata.each do |field, value|
       field = TagLib::String.new(field)
 
       value.each do |value|
