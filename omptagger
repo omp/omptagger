@@ -79,10 +79,7 @@ class Metadata
   def view
     Output.action('Viewing all tags')
 
-    if @metadata.empty?
-      Output.info('No tags set.')
-      throw :next
-    end
+    next_if_no_fields_set
 
     @metadata.sort.each do |field, value|
       value.each do |value|
@@ -94,10 +91,7 @@ class Metadata
   def viewtag(field)
     Output.action('Viewing ' + field + ' tag')
 
-    unless @metadata.has_key? field
-      Output.info('Tag not set.')
-      throw :next
-    end
+    next_if_field_not_set(field)
 
     @metadata[field].each do |value|
       Output.field(field, value)
@@ -107,10 +101,7 @@ class Metadata
   def addtag(field, value)
     Output.action('Adding ' + field + ' tag')
 
-    unless valid_field?(field)
-      Output.info('Invalid field name; see Vorbis comment specification.')
-      throw :next
-    end
+    next_if_not_valid_field(field)
 
     field.upcase!
 
@@ -128,10 +119,7 @@ class Metadata
   def settag(field, value)
     Output.action('Setting ' + field + ' tag')
 
-    unless valid_field?(field)
-      Output.info('Invalid field name; see Vorbis comment specification.')
-      throw :next
-    end
+    next_if_not_valid_field(field)
 
     field.upcase!
 
@@ -144,10 +132,7 @@ class Metadata
   def remove
     Output.action('Removing all tags')
 
-    if @metadata.empty?
-      Output.info('No tags set.')
-      throw :next
-    end
+    next_if_no_fields_set
 
     @metadata.clear
     Output.info('Removed')
@@ -158,15 +143,35 @@ class Metadata
   def removetag(field)
     Output.action('Removing ' + field + ' tag')
 
-    unless @metadata.has_key? field
-      Output.info('Tag not set.')
-      throw :next
-    end
+    next_if_field_not_set(field)
 
     @metadata.delete(field)
     Output.info('Removed')
 
     @write = true
+  end
+
+  private
+
+  def next_if_no_fields_set
+    if @metadata.empty?
+      Output.info('No fields set.')
+      throw :next
+    end
+  end
+
+  def next_if_field_not_set(field)
+    unless @metadata.has_key? field
+      Output.info('Field not set.')
+      throw :next
+    end
+  end
+
+  def next_if_not_valid_field(field)
+    unless valid_field?(field)
+      Output.info('Invalid field name.')
+      throw :next
+    end
   end
 end
 
@@ -197,7 +202,7 @@ class VorbisComment < Metadata
     end
 
     field.scan(/./).each do |character|
-      return false unless valid.include?(character) 
+      return false unless valid.include?(character)
     end
 
     return true
