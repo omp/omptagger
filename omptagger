@@ -21,35 +21,11 @@ require 'TagLib'
 require 'filemagic'
 
 module Output
-  def Output.file(file)
-    puts (file + ':').colourise(:yellow)
-  end
+  @colour = true
 
-  def Output.action(action)
-    puts '  ' + (action + ':').colourise(:green)
-  end
+  def self.colourise(string, colour)
+    return string unless @colour
 
-  def Output.info(info)
-    puts '    ' + info
-  end
-
-  def Output.field(field, value, padding = 0)
-    puts '    ' + field.colourise(:cyan) + ' ' * (2 + padding) + value
-  end
-end
-
-class Hash
-  def longest_key_length
-    self.keys.inject(0) do |longest, key|
-      key.length > longest ? key.length : longest
-    end
-  end
-end
-
-class String
-  @@colour = true
-
-  def colourise(colour)
     case colour
     when :green
       code = '32'
@@ -58,32 +34,33 @@ class String
     when :cyan
       code = '36'
     else
-      return self
+      return string
     end
 
-    return "\e[#{code}m#{self}\e[0m"
+    return "\e[#{code}m#{string}\e[0m"
   end
 
-  def format(type)
-    case type
-    when :file
-      indent = ''
-      colour = :yellow
-    when :action
-      indent = '  '
-      colour = :green
-    when :tag
-      indent = '    '
-      colour = :cyan
-    when :info
-      indent = '    '
-      colour = nil
-    end
+  def self.file(file)
+    puts colourise(file + ':', :yellow)
+  end
 
-    if @@colour
-      return indent + self.colourise(colour)
-    else
-      return indent + self
+  def self.action(action)
+    puts '  ' + colourise(action + ':', :green)
+  end
+
+  def self.field(field, value, padding = 0)
+    puts '    ' + colourise(field, :cyan) + ' ' * (2 + padding) + value
+  end
+
+  def self.info(info)
+    puts '    ' + info
+  end
+end
+
+class Hash
+  def longest_key_length
+    self.keys.inject(0) do |longest, key|
+      key.length > longest ? key.length : longest
     end
   end
 end
@@ -376,8 +353,8 @@ if ARGV.empty?
 end
 
 if options.include?(:nocolour)
-  class String
-    @@colour = false
+  module Output
+    @colour = false
   end
 end
 
