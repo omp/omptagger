@@ -189,6 +189,8 @@ class VorbisComment < Metadata
     @file.save
   end
 
+  private
+
   def valid_field?(field)
     valid = (32..125).collect do |character|
       character.chr
