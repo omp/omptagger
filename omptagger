@@ -301,9 +301,17 @@ class Metadata
 
     Output.info(@filename)
   end
+
+  def save
+    save_fields if @write
+
+    File.rename(@origname, @filename) unless @filename == @origname
+  end
 end
 
 class VorbisComment < Metadata
+  private
+
   def keys
     Hash['a' => 'ARTIST',
          'b' => 'ALBUM',
@@ -312,30 +320,24 @@ class VorbisComment < Metadata
          't' => 'TITLE']
   end
 
-  def save
-    if @write
-      read.each_key do |field|
-        metadata.removeField(TagLib::String.new(field))
-      end
-
-      @metadata.each do |field, value|
-        field = TagLib::String.new(field)
-
-        value.each do |value|
-          metadata.addField(field, TagLib::String.new(value), false)
-        end
-      end
-
-      @file.save
-    end
-
-    File.rename(@origname, @filename) unless @filename == @origname
-  end
-
-  private
-
   def read
     metadata.fieldListMap.hash
+  end
+
+  def save_fields
+    read.each_key do |field|
+      metadata.removeField(TagLib::String.new(field))
+    end
+
+    @metadata.each do |field, value|
+      field = TagLib::String.new(field)
+
+      value.each do |value|
+        metadata.addField(field, TagLib::String.new(value), false)
+      end
+    end
+
+    @file.save
   end
 
   def valid_field?(field)
