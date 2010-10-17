@@ -55,6 +55,60 @@ module Output
   def self.info(info)
     puts '    ' + info
   end
+
+  def self.help_information
+    puts <<-end
+Usage: omptagger [actions/options] [files]
+
+Actions:
+  --view        -v  View all tags
+  --view-tag    -t  View a tag
+  --add-tag     -a  Add a tag
+  --set-tag     -s  Set a tag
+  --remove      -r  Remove all tags
+  --remove-tag  -d  Remove a tag
+  --generate    -g  Generate tags based on filename
+  --rename      -m  Rename file based on tags
+  --scheme      -n  Change file naming scheme
+
+Options:
+  --no-colour   -c  Disable colourisation of output
+  --pretend     -p  Disable finalisation of changes
+  --help        -h  Display help information
+  --info        -i  Display additional information
+    end
+
+    exit
+  end
+
+  def self.additional_information
+    puts <<-end
+Actions:
+  * Multiple actions can be chained together.
+  * Actions are executed in the order they are specified.
+  * Example: omptagger --view --set-tag ALBUM='Foobar' --view
+
+Schemes:
+  * The default file naming scheme is Track - Artist - Title.
+  * Schemes must be specified prior to actions that use them.
+  * Example: omptagger --scheme '%a - %t' --generate
+  * %a - Artist    %* - Wildcard
+    %b - Album     %% - Per cent sign
+    %d - Date
+    %n - Track
+    %t - Title
+
+Supported Tags:
+  * Vorbis comments: Any field name allowed by specification.
+  * ID3v2 frames: Artist, album, title, track, year.
+
+Tag Generation:
+  * Underscores in filenames are converted to spaces in tags.
+  * Backslashes in filenames are converted to forward slashes in tags.
+    end
+
+    exit
+  end
 end
 
 class Hash
@@ -259,60 +313,6 @@ class MP3 < Metadata
   end
 end
 
-def help
-  puts <<-end
-Usage: omptagger [actions/options] [files]
-
-Actions:
-  --view        -v  View all tags
-  --view-tag    -t  View a tag
-  --add-tag     -a  Add a tag
-  --set-tag     -s  Set a tag
-  --remove      -r  Remove all tags
-  --remove-tag  -d  Remove a tag
-  --generate    -g  Generate tags based on filename
-  --rename      -m  Rename file based on tags
-  --scheme      -n  Change file naming scheme
-
-Options:
-  --no-colour   -c  Disable colourisation of output
-  --pretend     -p  Disable finalisation of changes
-  --help        -h  Display help information
-  --info        -i  Display additional information
-  end
-
-  exit
-end
-
-def info
-  puts <<-end
-Actions:
-  * Multiple actions can be chained together.
-  * Actions are executed in the order they are specified.
-  * Example: omptagger --view --set-tag ALBUM='Foobar' --view
-
-Schemes:
-  * The default file naming scheme is Track - Artist - Title.
-  * Schemes must be specified prior to actions that use them.
-  * Example: omptagger --scheme '%a - %t' --generate
-  * %a - Artist    %* - Wildcard
-    %b - Album     %% - Per cent sign
-    %d - Date
-    %n - Track
-    %t - Title
-
-Supported Tags:
-  * Vorbis comments: Any field name allowed by specification.
-  * ID3v2 frames: Artist, album, title, track, year.
-
-Tag Generation:
-  * Underscores in filenames are converted to spaces in tags.
-  * Backslashes in filenames are converted to forward slashes in tags.
-  end
-
-  exit
-end
-
 actions = Array.new
 options = Array.new
 scheme  = '%n - %a - %t'
@@ -335,13 +335,18 @@ GetoptLong.new(
   option = option.delete('-').intern
 
   case option
+  when :help
+    Output.help_information
+  when :info
+    Output.additional_information
   when :scheme
     scheme = argument
-  when :nocolour, :pretend, :help, :info
+  when :nocolour, :pretend
     options << option
   when :viewtag, :removetag
     actions << [option, argument]
   when :addtag, :settag
+    raise 'Incorrect argument' unless argument.include?('=')
     actions << [option, argument.split('=', 2)].flatten
   when :generate, :rename
     actions << [option, scheme]
@@ -350,9 +355,7 @@ GetoptLong.new(
   end
 end
 
-help if options.include?(:help)
-info if options.include?(:info)
-help if actions.empty?
+Output.help_information if actions.empty?
 
 if ARGV.empty?
   puts 'No files specified.'
