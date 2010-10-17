@@ -149,6 +149,25 @@ class Action
   end
 end
 
+class MetadataError < RuntimeError
+  def initialize(error)
+    @error = error
+  end
+
+  def to_s
+    case @error
+    when :empty
+      str = 'No fields set.'
+    when :unset
+      str = 'Field not set.'
+    when :invalid
+      str = 'Invalid field name.'
+    end
+
+    return str
+  end
+end
+
 class Array
   def longest_element_length
     self.inject(0) do |longest, key|
@@ -177,7 +196,7 @@ class Metadata
   end
 
   def view
-    next_if_no_fields_set
+    raise MetadataError, :empty if @metadata.empty?
 
     @metadata.sort.each do |field, value|
       value.each do |value|
@@ -189,17 +208,17 @@ class Metadata
   def viewtag(field)
     field.upcase!
 
-    next_if_field_not_set(field)
+    raise MetadataError, :unset unless @metadata.has_key?(field)
 
     @metadata[field].each do |value|
       Output.field(field, value)
     end
   end
 
-  def addtag(field, value)
+  def addtag(field, value, padding = 0)
     field.upcase!
 
-    next_if_not_valid_field(field)
+    raise MetadataError, :invalid unless valid_field?(field)
 
     if @metadata.has_key?(field)
       @metadata[field] << value
@@ -207,7 +226,7 @@ class Metadata
       @metadata[field] = value
     end
 
-    Output.field(field, value)
+    Output.field(field, value, padding)
 
     @write = true
   end
@@ -215,7 +234,7 @@ class Metadata
   def settag(field, value)
     field.upcase!
 
-    next_if_not_valid_field(field)
+    raise MetadataError, :invalid unless valid_field?(field)
 
     @metadata[field] = [value]
     Output.field(field, value)
@@ -224,10 +243,10 @@ class Metadata
   end
 
   def remove
-    next_if_no_fields_set
+    raise MetadataError, :empty if @metadata.empty?
 
     @metadata.clear
-    Output.info('Removed')
+    Output.info('Removed.')
 
     @write = true
   end
@@ -235,10 +254,10 @@ class Metadata
   def removetag(field)
     field.upcase!
 
-    next_if_field_not_set(field)
+    raise MetadataError, :unset unless @metadata.has_key?(field)
 
     @metadata.delete(field)
-    Output.info('Removed')
+    Output.info('Removed.')
 
     @write = true
   end
@@ -252,8 +271,7 @@ class Metadata
     values = @filename.chomp(File.extname(@filename)).scan(regexp).flatten
 
     unless fields.length == values.length
-      Output.info('Filename does not match naming scheme.')
-      throw :next
+      raise MetadataError, 'Filename does not match naming scheme.'
     end
 
     fields.collect! do |field|
@@ -264,31 +282,8 @@ class Metadata
 
     fields.zip(values).each do |field, value|
       unless field.nil?
-        Output.field(field, value, longest - field.length)
+        addtag(field, value, longest - field.length)
       end
-    end
-  end
-
-  private
-
-  def next_if_no_fields_set
-    if @metadata.empty?
-      Output.info('No fields set.')
-      throw :next
-    end
-  end
-
-  def next_if_field_not_set(field)
-    unless @metadata.has_key? field
-      Output.info('Field not set.')
-      throw :next
-    end
-  end
-
-  def next_if_not_valid_field(field)
-    unless valid_field?(field)
-      Output.info('Invalid field name.')
-      throw :next
     end
   end
 end
@@ -459,9 +454,11 @@ ARGV.each do |file|
     end
 
     actions.each do |action|
-      Output.action(action.to_s)
-      catch :next do
+      begin
+        Output.action(action.to_s)
         action.execute(metadata)
+      rescue MetadataError => message
+        Output.info(message.to_s)
       end
     end
 
