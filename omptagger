@@ -111,6 +111,44 @@ Tag Generation:
   end
 end
 
+class Action
+  def initialize(action, *arguments)
+    @action = action
+    @arguments = arguments
+  end
+
+  def execute(metadata)
+    if @arguments.empty?
+      metadata.send(@action)
+    else
+      metadata.send(@action, *@arguments)
+    end
+  end
+
+  def to_s
+    case @action
+    when :view
+      str = 'Viewing all fields'
+    when :viewtag
+      str = 'Viewing %s field'
+    when :addtag
+      str = 'Adding %s field'
+    when :settag
+      str = 'Setting %s field'
+    when :remove
+      str = 'Removing all fields'
+    when :removetag
+      str = 'Removing %s field'
+    when :generate
+      str = 'Generating fields'
+    when :rename
+      str = 'Renaming file'
+    end
+
+    return str % @arguments
+  end
+end
+
 class Array
   def longest_element_length
     self.inject(0) do |longest, key|
@@ -139,8 +177,6 @@ class Metadata
   end
 
   def view
-    Output.action('Viewing all fields')
-
     next_if_no_fields_set
 
     @metadata.sort.each do |field, value|
@@ -153,8 +189,6 @@ class Metadata
   def viewtag(field)
     field.upcase!
 
-    Output.action('Viewing ' + field + ' field')
-
     next_if_field_not_set(field)
 
     @metadata[field].each do |value|
@@ -164,8 +198,6 @@ class Metadata
 
   def addtag(field, value)
     field.upcase!
-
-    Output.action('Adding ' + field + ' field')
 
     next_if_not_valid_field(field)
 
@@ -183,8 +215,6 @@ class Metadata
   def settag(field, value)
     field.upcase!
 
-    Output.action('Setting ' + field + ' field')
-
     next_if_not_valid_field(field)
 
     @metadata[field] = [value]
@@ -194,8 +224,6 @@ class Metadata
   end
 
   def remove
-    Output.action('Removing all fields')
-
     next_if_no_fields_set
 
     @metadata.clear
@@ -207,8 +235,6 @@ class Metadata
   def removetag(field)
     field.upcase!
 
-    Output.action('Removing ' + field + ' field')
-
     next_if_field_not_set(field)
 
     @metadata.delete(field)
@@ -218,8 +244,6 @@ class Metadata
   end
 
   def generate(scheme)
-    Output.action('Generating fields')
-
     regexp = Regexp.escape(scheme)
     regexp = regexp.gsub(/%([#{keys.keys.join}]|\\\*)/, '([^/]*?)')
     regexp = /#{regexp}\Z/
@@ -392,14 +416,14 @@ GetoptLong.new(
   when :nocolour, :pretend
     options << option
   when :viewtag, :removetag
-    actions << [option, argument.dup]
+    actions << Action.new(option, argument.dup)
   when :addtag, :settag
     raise 'Incorrect argument' unless argument.include?('=')
-    actions << [option, argument.split('=', 2)].flatten
+    actions << Action.new(option, *argument.split('=', 2))
   when :generate, :rename
-    actions << [option, scheme]
+    actions << Action.new(option, scheme)
   else
-    actions << [option]
+    actions << Action.new(option)
   end
 end
 
@@ -435,8 +459,9 @@ ARGV.each do |file|
     end
 
     actions.each do |action|
+      Output.action(action.to_s)
       catch :next do
-        track.send(*action)
+        action.execute(track)
       end
     end
 
