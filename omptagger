@@ -303,7 +303,7 @@ class Metadata
   end
 
   def save
-    save_fields if @write
+    write if @write
 
     File.rename(@origname, @filename) unless @filename == @origname
   end
@@ -324,7 +324,7 @@ class VorbisComment < Metadata
     metadata.fieldListMap.hash
   end
 
-  def save_fields
+  def write
     read.each_key do |field|
       metadata.removeField(TagLib::String.new(field))
     end
