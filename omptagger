@@ -158,10 +158,12 @@ class MetadataError < RuntimeError
     case @error
     when :empty
       str = 'No fields set.'
+    when :generate
+      str = 'Filename does not match scheme.'
     when :invalid
       str = 'Invalid field name.'
-    when :scheme
-      str = 'Filename does not match scheme.'
+    when :rename
+      str = 'Insufficient tags.'
     when :unset
       str = 'Field not set.'
     end
@@ -191,10 +193,11 @@ class Metadata
     Output.file(file)
 
     @filename = File.expand_path(file)
-    @write = false
+    @origname = @filename
 
     @file = open(file)
     @metadata = read
+    @write = false
   end
 
   def view
@@ -272,7 +275,7 @@ class Metadata
     fields = scheme.scan(regexp).flatten
     values = @filename.chomp(File.extname(@filename)).scan(regexp).flatten
 
-    raise MetadataError, :scheme unless fields.length == values.length
+    raise MetadataError, :generate unless fields.length == values.length
 
     fields.collect! do |field|
       keys[field[1,1]]
@@ -286,6 +289,18 @@ class Metadata
       end
     end
   end
+
+  def rename(scheme)
+    scheme.scan(/%([#{keys.keys.join}])/).flatten.uniq.each do |field|
+      raise MetadataError, :rename unless @metadata[keys[field]]
+      scheme = scheme.gsub('%' + field, @metadata[keys[field]].first)
+    end
+
+    scheme << File.extname(@filename)
+    @filename = File.join(File.dirname(@filename), scheme)
+
+    Output.info(@filename)
+  end
 end
 
 class VorbisComment < Metadata
@@ -298,21 +313,23 @@ class VorbisComment < Metadata
   end
 
   def save
-    return unless @write
-
-    read.each_key do |field|
-      metadata.removeField(TagLib::String.new(field))
-    end
-
-    @metadata.each do |field, value|
-      field = TagLib::String.new(field)
-
-      value.each do |value|
-        metadata.addField(field, TagLib::String.new(value), false)
+    if @write
+      read.each_key do |field|
+        metadata.removeField(TagLib::String.new(field))
       end
+
+      @metadata.each do |field, value|
+        field = TagLib::String.new(field)
+
+        value.each do |value|
+          metadata.addField(field, TagLib::String.new(value), false)
+        end
+      end
+
+      @file.save
     end
 
-    @file.save
+    File.rename(@origname, @filename) unless @filename == @origname
   end
 
   private
