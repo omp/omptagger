@@ -93,7 +93,7 @@ Schemes:
   * Schemes must be specified prior to actions that use them.
   * Example: omptagger --scheme '%a - %t' --generate
   * %a - Artist    %* - Wildcard
-    %b - Album     %% - Per cent sign
+    %b - Album
     %d - Date
     %n - Track
     %t - Title
@@ -108,6 +108,14 @@ Tag Generation:
     end
 
     exit
+  end
+end
+
+class Array
+  def longest_element_length
+    self.inject(0) do |longest, key|
+      key.length > longest ? key.length : longest
+    end
   end
 end
 
@@ -209,6 +217,34 @@ class Metadata
     @write = true
   end
 
+  def generate(scheme)
+    Output.action('Generating fields')
+
+    regexp = Regexp.escape(scheme)
+    regexp = regexp.gsub(/%([#{keys.keys.join}]|\\\*)/, '([^/]*?)')
+    regexp = /#{regexp}\Z/
+
+    fields = scheme.scan(regexp).flatten
+    values = @filename.chomp(File.extname(@filename)).scan(regexp).flatten
+
+    unless fields.length == values.length
+      Output.info('Filename does not match naming scheme.')
+      throw :next
+    end
+
+    fields.collect! do |field|
+      keys[field[1,1]]
+    end
+
+    longest = fields.compact.longest_element_length
+
+    fields.zip(values).each do |field, value|
+      unless field.nil?
+        Output.field(field, value, longest - field.length)
+      end
+    end
+  end
+
   private
 
   def next_if_no_fields_set
@@ -234,6 +270,14 @@ class Metadata
 end
 
 class VorbisComment < Metadata
+  def keys
+    Hash['a' => 'ARTIST',
+         'b' => 'ALBUM',
+         'd' => 'DATE',
+         'n' => 'TRACKNUMBER',
+         't' => 'TITLE']
+  end
+
   def save
     return unless @write
 
@@ -253,6 +297,10 @@ class VorbisComment < Metadata
   end
 
   private
+
+  def read
+    metadata.fieldListMap.hash
+  end
 
   def valid_field?(field)
     valid = (32..125).collect do |character|
@@ -279,10 +327,6 @@ class FLAC < VorbisComment
   def metadata
     @file.xiphComment
   end
-
-  def read
-    metadata.fieldListMap.hash
-  end
 end
 
 class Vorbis < VorbisComment
@@ -294,10 +338,6 @@ class Vorbis < VorbisComment
 
   def metadata
     @file.tag
-  end
-
-  def read
-    metadata.fieldListMap.hash
   end
 end
 
