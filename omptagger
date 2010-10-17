@@ -259,6 +259,8 @@ class VorbisComment < Metadata
       character.chr
     end
 
+    valid.delete('=')
+
     field.scan(/./).each do |character|
       return false unless valid.include?(character)
     end
@@ -306,14 +308,16 @@ class MP3 < Metadata
     TagLib::MPEG::File.new(file)
   end
 
-  def read
-    metadata = @file.ID3v2Tag.frameListMap.hash
+  def metadata
+    @file.ID3v2Tag
+  end
 
-    metadata.each do |field, value|
-      metadata[field] = value.collect do |frame|
+  def read
+    Hash[metadata.frameListMap.hash.collect do |field, value|
+      [field, value.collect do |frame|
         frame.to_s
-      end
-    end
+      end]
+    end]
   end
 end
 
