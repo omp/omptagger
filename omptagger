@@ -449,11 +449,11 @@ ARGV.each do |file|
 
     case mime.file(file)
     when 'audio/x-flac'
-      track = FLAC.new(file)
+      metadata = FLAC.new(file)
     when 'application/ogg'
-      track = Vorbis.new(file)
+      metadata = Vorbis.new(file)
     when 'audio/mpeg'
-      track = MP3.new(file)
+      metadata = MP3.new(file)
     else
       raise 'File extension not recognised.'
     end
@@ -461,11 +461,11 @@ ARGV.each do |file|
     actions.each do |action|
       Output.action(action.to_s)
       catch :next do
-        action.execute(track)
+        action.execute(metadata)
       end
     end
 
-    track.save unless options.include?(:pretend)
+    metadata.save unless options.include?(:pretend)
   rescue RuntimeError => message
     $stderr.puts $0 + ': ' + file + ': ' + message
   end
