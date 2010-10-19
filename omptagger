@@ -462,7 +462,7 @@ GetoptLong.new(
   when :viewtag, :removetag
     actions << Action.new(option, argument.dup)
   when :addtag, :settag
-    raise 'Incorrect argument' unless argument.include?('=')
+    raise 'Insufficient argument.' unless argument.include?('=')
     actions << Action.new(option, *argument.split('=', 2))
   when :generate, :rename
     actions << Action.new(option, scheme)
