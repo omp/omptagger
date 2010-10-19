@@ -471,9 +471,10 @@ GetoptLong.new(
   end
 end
 
-Output.help_information if actions.empty?
-
-if ARGV.empty?
+if actions.empty?
+  puts 'No actions specified. See the --help option.'
+  exit
+elsif ARGV.empty?
   puts 'No files specified.'
   exit
 end
