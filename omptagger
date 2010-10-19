@@ -140,7 +140,7 @@ class Datum
     Output.action(action.to_s)
 
     begin
-      @metadata.send(*action.arguments.unshift(action.action))
+      @metadata.send(*action.arguments.dup.unshift(action.action))
     rescue MetadataError => message
       Output.info(message.to_s)
     end
