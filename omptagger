@@ -111,18 +111,54 @@ Tag Generation:
   end
 end
 
+class Datum
+  def initialize(filename)
+    raise 'File does not exist.' unless File.exist?(filename)
+
+    Output.file(filename)
+
+    @filename = File.expand_path(filename)
+
+    mime = FileMagic.mime
+    mime.simplified = true
+
+    case mime.file(@filename)
+    when 'audio/x-flac'
+      type = FLAC
+    when 'application/ogg'
+      type = Vorbis
+    when 'audio/mpeg'
+      type = MP3
+    else
+      raise 'File type not recognised.'
+    end
+
+    @metadata = type.new(@filename)
+  end
+
+  def execute(action)
+    Output.action(action.to_s)
+
+    begin
+      @metadata.send(*action.arguments.unshift(action.action))
+    rescue MetadataError => message
+      Output.info(message.to_s)
+    end
+  end
+
+  def save
+    @metadata.save if @metadata.write
+
+    File.rename(@filename, @metadata.filename) unless @filename == @metadata.filename
+  end
+end
+
 class Action
+  attr_reader :action, :arguments
+
   def initialize(action, *arguments)
     @action = action
     @arguments = arguments
-  end
-
-  def execute(metadata)
-    if @arguments.empty?
-      metadata.send(@action)
-    else
-      metadata.send(@action, *@arguments)
-    end
   end
 
   def to_s
@@ -189,11 +225,10 @@ class Hash
 end
 
 class Metadata
-  def initialize(file)
-    Output.file(file)
+  attr_reader :filename, :write
 
+  def initialize(file)
     @filename = File.expand_path(file)
-    @origname = @filename
 
     @file = open(file)
     @metadata = read
@@ -301,30 +336,10 @@ class Metadata
 
     Output.info(@filename)
   end
-
-  def save
-    write if @write
-
-    File.rename(@origname, @filename) unless @filename == @origname
-  end
 end
 
 class VorbisComment < Metadata
-  private
-
-  def keys
-    Hash['a' => 'ARTIST',
-         'b' => 'ALBUM',
-         'd' => 'DATE',
-         'n' => 'TRACKNUMBER',
-         't' => 'TITLE']
-  end
-
-  def read
-    metadata.fieldListMap.hash
-  end
-
-  def write
+  def save
     read.each_key do |field|
       metadata.removeField(TagLib::String.new(field, TagLib::String::UTF8))
     end
@@ -339,6 +354,20 @@ class VorbisComment < Metadata
     end
 
     @file.save
+  end
+
+  private
+
+  def keys
+    Hash['a' => 'ARTIST',
+         'b' => 'ALBUM',
+         'd' => 'DATE',
+         'n' => 'TRACKNUMBER',
+         't' => 'TITLE']
+  end
+
+  def read
+    metadata.fieldListMap.hash
   end
 
   def valid_field?(field)
@@ -455,35 +484,16 @@ if options.include?(:nocolour)
   end
 end
 
-mime = FileMagic.mime
-mime.simplified = true
-
-ARGV.each do |file|
+ARGV.each do |filename|
   begin
-    raise 'File does not exist.' unless File.exist?(file)
-
-    case mime.file(file)
-    when 'audio/x-flac'
-      metadata = FLAC.new(file)
-    when 'application/ogg'
-      metadata = Vorbis.new(file)
-    when 'audio/mpeg'
-      metadata = MP3.new(file)
-    else
-      raise 'File extension not recognised.'
-    end
+    datum = Datum.new(filename)
 
     actions.each do |action|
-      begin
-        Output.action(action.to_s)
-        action.execute(metadata)
-      rescue MetadataError => message
-        Output.info(message.to_s)
-      end
+      datum.execute(action)
     end
 
-    metadata.save unless options.include?(:pretend)
+    datum.save unless options.include?(:pretend)
   rescue RuntimeError => message
-    $stderr.puts $0 + ': ' + file + ': ' + message
+    $stderr.puts $0 + ': ' + filename + ': ' + message
   end
 end
