@@ -430,8 +430,7 @@ class MP3 < Metadata
 end
 
 actions = Array.new
-options = Array.new
-scheme  = '%n - %a - %t'
+options = Hash[:scheme => '%n - %a - %t']
 
 GetoptLong.new(
   ['--view',       '-v', GetoptLong::NO_ARGUMENT],
@@ -456,16 +455,16 @@ GetoptLong.new(
   when :info
     Output.additional_information
   when :scheme
-    scheme = argument
+    options[option] = argument
   when :nocolour, :pretend
-    options << option
+    options[option] = true
   when :viewtag, :removetag
     actions << Action.new(option, argument.dup)
   when :addtag, :settag
     raise 'Insufficient argument.' unless argument.include?('=')
     actions << Action.new(option, *argument.split('=', 2))
   when :generate, :rename
-    actions << Action.new(option, scheme)
+    actions << Action.new(option, options[:scheme])
   else
     actions << Action.new(option)
   end
@@ -479,7 +478,7 @@ elsif ARGV.empty?
   exit
 end
 
-if options.include?(:nocolour)
+if options[:nocolour]
   module Output
     @colour = false
   end
@@ -493,7 +492,7 @@ ARGV.each do |filename|
       datum.execute(action)
     end
 
-    datum.save unless options.include?(:pretend)
+    datum.save unless options[:pretend]
   rescue RuntimeError => message
     $stderr.puts $0 + ': ' + filename + ': ' + message
   end
