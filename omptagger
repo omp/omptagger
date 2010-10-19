@@ -112,6 +112,9 @@ Tag Generation:
 end
 
 class Datum
+  @@mime = FileMagic.mime
+  @@mime.simplified = true
+
   def initialize(filename)
     raise 'File does not exist.' unless File.exist?(filename)
 
@@ -119,10 +122,7 @@ class Datum
 
     @filename = File.expand_path(filename)
 
-    mime = FileMagic.mime
-    mime.simplified = true
-
-    case mime.file(@filename)
+    case @@mime.file(@filename)
     when 'audio/x-flac'
       type = FLAC
     when 'application/ogg'
