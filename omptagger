@@ -333,7 +333,8 @@ class VorbisComment < Metadata
       field = TagLib::String.new(field, TagLib::String::UTF8)
 
       value.each do |value|
-        metadata.addField(field, TagLib::String.new(value, TagLib::String::UTF8), false)
+        value = TagLib::String.new(value, TagLib::String::UTF8)
+        metadata.addField(field, value, false)
       end
     end
 
