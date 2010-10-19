@@ -326,14 +326,14 @@ class VorbisComment < Metadata
 
   def write
     read.each_key do |field|
-      metadata.removeField(TagLib::String.new(field))
+      metadata.removeField(TagLib::String.new(field, TagLib::String::UTF8))
     end
 
     @metadata.each do |field, value|
-      field = TagLib::String.new(field)
+      field = TagLib::String.new(field, TagLib::String::UTF8)
 
       value.each do |value|
-        metadata.addField(field, TagLib::String.new(value), false)
+        metadata.addField(field, TagLib::String.new(value, TagLib::String::UTF8), false)
       end
     end
 
