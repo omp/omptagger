@@ -21,10 +21,14 @@ require 'TagLib'
 require 'filemagic'
 
 module Output
-  @colour = true
+  @@colour = true
+
+  def self.colour=(boolean)
+    @@colour = boolean
+  end
 
   def self.colourise(string, colour)
-    return string unless @colour
+    return string unless @@colour
 
     case colour
     when :green
@@ -454,10 +458,8 @@ GetoptLong.new(
     Output.help_information
   when :info
     Output.additional_information
-  when :scheme
+  when :nocolour, :pretend, :scheme
     options[option] = argument
-  when :nocolour, :pretend
-    options[option] = true
   when :viewtag, :removetag
     actions << Action.new(option, argument.dup)
   when :addtag, :settag
@@ -479,9 +481,7 @@ elsif ARGV.empty?
 end
 
 if options[:nocolour]
-  module Output
-    @colour = false
-  end
+  Output.colour = false
 end
 
 ARGV.each do |filename|
