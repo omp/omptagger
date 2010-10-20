@@ -480,9 +480,7 @@ elsif ARGV.empty?
   exit
 end
 
-if options[:nocolour]
-  Output.colour = false
-end
+Output.colour = false if options[:nocolour]
 
 ARGV.each do |filename|
   begin
