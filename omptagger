@@ -60,7 +60,7 @@ module Output
     puts '    ' + info
   end
 
-  def self.help_information
+  def self.help
     puts <<-end
 Usage: omptagger [actions/options] [files]
 
@@ -78,37 +78,11 @@ Actions:
 Options:
   --no-colour   -c  Disable colourisation of output
   --pretend     -p  Disable finalisation of changes
-  --help        -h  Display help information
-  --info        -i  Display additional information
-    end
 
-    exit
-  end
-
-  def self.additional_information
-    puts <<-end
-Actions:
-  * Multiple actions can be chained together.
-  * Actions are executed in the order they are specified.
-  * Example: omptagger --view --set-tag ALBUM='Foobar' --view
-
-Schemes:
-  * The default file naming scheme is Track - Artist - Title.
-  * Schemes must be specified prior to actions that use them.
-  * Example: omptagger --scheme '%a - %t' --generate
-  * %a - Artist    %* - Wildcard
-    %b - Album
-    %d - Date
-    %n - Track
-    %t - Title
-
-Supported Tags:
-  * Vorbis comments: Any field name allowed by specification.
-  * ID3v2 frames: Artist, album, title, track, year.
-
-Tag Generation:
-  * Underscores in filenames are converted to spaces in tags.
-  * Backslashes in filenames are converted to forward slashes in tags.
+See the man page for:
+  - A complete list of options.
+  - Detailed explanations and examples for each option.
+  - General usage information, as well as various tips.
     end
 
     exit
@@ -416,6 +390,14 @@ end
 class MP3 < Metadata
   private
 
+  def keys
+    Hash['a' => 'TPE1',
+         'b' => 'TALB',
+         'd' => 'TDRC',
+         'n' => 'TRCK',
+         't' => 'TIT2']
+  end
+
   def open(file)
     TagLib::MPEG::File.new(file)
   end
@@ -430,6 +412,10 @@ class MP3 < Metadata
         frame.to_s
       end]
     end]
+  end
+
+  def valid_field?(field)
+    true
   end
 end
 
@@ -448,16 +434,13 @@ GetoptLong.new(
   ['--scheme',     '-n', GetoptLong::REQUIRED_ARGUMENT],
   ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
   ['--pretend',    '-p', GetoptLong::NO_ARGUMENT],
-  ['--help',       '-h', GetoptLong::NO_ARGUMENT],
-  ['--info',       '-i', GetoptLong::NO_ARGUMENT]
+  ['--help',       '-h', GetoptLong::NO_ARGUMENT]
 ).each do |option, argument|
   option = option.delete('-').intern
 
   case option
   when :help
-    Output.help_information
-  when :info
-    Output.additional_information
+    Output.help
   when :nocolour, :pretend, :scheme
     options[option] = argument
   when :viewtag, :removetag

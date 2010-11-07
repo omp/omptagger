@@ -1,0 +1,153 @@
+.TH omptagger 1
+.SH NAME
+omptagger \- Modify and display the metadata of audio files.
+.SH SYNOPSIS
+.B omptagger
+options files
+.SH DESCRIPTION
+Omptagger is a command\-line application for modifying and displaying the metadata of audio files. It attempts to provide a flexible interface that is both powerful and easy to use.
+
+Currently supported metadata types are Vorbis comments for FLAC and Ogg Vorbis files, as well as ID3v2 frames for MP3 files. Although omptagger is primarily used with TagLib, it has a library\-agnostic design, allowing for a number of various libraries to be used.
+.SH OPTIONS
+.SS Actions
+.B \-\-view
+.RS 4
+Display all metadata.
+.RE
+.PP
+.B \-\-view\-tag field
+.RS 4
+Display any metadata with the specified field name.
+
+Available matching conditions:
+.RS 4
+r/field/   Regular expression
+.RE
+.RS 4
+r/field/i  Regular expression (case\-insensitive)
+.RE
+.RS 4
+s/field/   Exact match
+.RE
+.RS 4
+s/field/i  Exact match (case\-insensitive) (default)
+.RE
+.RE
+.PP
+.B \-\-add\-tag field=value
+.RS 4
+Add the specified tag only if it can be done without removing other tags.
+
+This action will never replace an existing tag. If the format allows for more than one value per field, the specified value will be added to the existing set. However, if the format restricts each field to a single value, this action will only set the tag if it is not currently set.
+.RE
+.PP
+.B \-\-set\-tag field=value
+.RS 4
+Set a tag.
+
+This action will replace any existing tags of the same field.
+.RE
+.PP
+.B \-\-remove
+.RS 4
+Remove all metadata.
+.RE
+.PP
+.B \-\-remove\-tag field
+.RS 4
+Remove any metadata with the specified field name.
+
+Available matching conditions:
+.RS 4
+r/field/   Regular expression
+.RE
+.RS 4
+r/field/i  Regular expression (case\-insensitive)
+.RE
+.RS 4
+s/field/   Exact match
+.RE
+.RS 4
+s/field/i  Exact match (case\-insensitive) (default)
+.RE
+.RE
+.PP
+.B \-\-generate
+.RS 4
+Generate metadata from filename.
+
+The filename is compared against the current file naming scheme, with a successful match resulting in the relevant metadata being added. As the absolute path to the file is used, metadata can also be generated from directory names. See the 
+.B \-\-scheme
+option for more information.
+
+Furthermore, please note that this action makes calls to the
+.B \-\-add\-tag
+action. As a result, you will usually want to remove metadata prior to using this action.
+.RE
+.PP
+.B \-\-rename
+.RS 4
+Rename file based on metadata.
+
+The file naming scheme is used to construct a new filename from the metadata. If any field has more than one value, the first one is used. Furthermore, the file naming scheme should not include any directories. See the 
+.B \-\-scheme
+option for more information.
+.RE
+.PP
+.SS Options
+.B \-\-scheme scheme
+.RS 4
+Set the file naming scheme.
+
+Any action which relies on a scheme will use the last\-specified scheme before that action. This means that the \-\-scheme option must be supplied prior to an action which will be using that scheme.
+
+Format:
+.RS 4
+%<field>
+.RE
+
+Shortcut Keys:
+.RS 4
+%a  Artist
+.RE
+.RS 4
+%b  Album
+.RE
+.RS 4
+%d  Date
+.RE
+.RS 4
+%n  Track
+.RE
+.RS 4
+%t  Title
+.RE
+
+Special Keys:
+.RS 4
+%*  Wildcard
+.RE
+.RS 4
+%%  Per cent sign
+.RE
+.RE
+.PP
+.B \-\-no\-colour
+.RS 4
+Disable colourisation of output.
+.RE
+.PP
+.B \-\-pretend
+.RS 4
+Disable finalisation of changes.
+
+This prevents omptagger from writing metadata or renaming files. This is useful when you want to see what omptagger would do had this option not been set.
+.RE
+.PP
+.B \-\-help
+.RS 4
+Display help information.
+
+Please note that the presence of this option will cause omptagger to exit before processing any files. The list of actions and options on the help screen is useful as a quick reference, but it is nowhere near as informative as this man page.
+.RE
+.PP
