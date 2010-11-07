@@ -12,13 +12,11 @@
 #   Ruby            http://www.ruby-lang.org/
 #   RubyGems        http://rubygems.org/
 #   rtaglib         http://rubygems.org/gems/rtaglib
-#   ruby-filemagic  http://rubygems.org/gems/ruby-filemagic
 #   TagLib          http://developer.kde.org/~wheeler/taglib.html
 
 require 'getoptlong'
 require 'rubygems'
 require 'TagLib'
-require 'filemagic'
 
 module Output
   @@colour = true
@@ -90,9 +88,6 @@ See the man page for:
 end
 
 class Datum
-  @@mime = FileMagic.mime
-  @@mime.simplified = true
-
   def initialize(filename)
     raise 'File does not exist.' unless File.exist?(filename)
 
@@ -100,15 +95,15 @@ class Datum
 
     @filename = File.expand_path(filename)
 
-    case @@mime.file(@filename)
-    when 'audio/x-flac'
+    case File.extname(filename)
+    when '.flac'
       type = FLAC
-    when 'application/ogg'
+    when '.ogg'
       type = Vorbis
-    when 'audio/mpeg'
+    when '.mp3'
       type = MP3
     else
-      raise 'File type not recognised.'
+      raise 'File extension not recognised.'
     end
 
     @metadata = type.new(@filename)
