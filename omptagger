@@ -98,7 +98,7 @@ class Datum
     case File.extname(filename)
     when '.flac'
       type = FLAC
-    when '.ogg'
+    when '.ogg', '.oga'
       type = Vorbis
     when '.mp3'
       type = MP3
