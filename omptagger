@@ -236,7 +236,7 @@ class Metadata
     if @metadata.has_key?(field)
       @metadata[field] << value
     else
-      @metadata[field] = value
+      @metadata[field] = [value]
     end
 
     Output.field(field, value, padding)
