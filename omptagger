@@ -385,7 +385,11 @@ class MP3 < Metadata
 
     @metadata.each do |field, value|
       value.each do |value|
-        metadata.add_frame(field, value, false)
+        frame = TagLib::ID3v2::TextIdentificationFrame.new(field,
+          TagLib::String::UTF8)
+        frame.text = value
+
+        metadata.add_frame(frame)
       end
     end
 
