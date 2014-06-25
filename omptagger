@@ -389,7 +389,7 @@ class MP3 < Metadata
           TagLib::String::UTF8)
         frame.text = value
 
-        metadata.add_frame(frame)
+        metadata.add_frame(frame) if metadata.frame_list(field).empty?
       end
     end
 
