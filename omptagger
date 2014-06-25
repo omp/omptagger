@@ -4,19 +4,17 @@
 # http://github.com/omp/omptagger
 # Modify and display metadata of audio files.
 #
-# Copyright 2007-2010 David Vazgenovich Shakaryan <dvshakaryan@gmail.com>
+# Copyright 2007-2014 David Vazgenovich Shakaryan <dvshakaryan@gmail.com>
 # Distributed under the terms of the GNU General Public License v3.
 # See http://www.gnu.org/licenses/gpl.txt for the full license text.
 #
 # Dependencies:
-#   Ruby            http://www.ruby-lang.org/
-#   RubyGems        http://rubygems.org/
-#   rtaglib         http://rubygems.org/gems/rtaglib
-#   TagLib          http://developer.kde.org/~wheeler/taglib.html
+#   ruby            http://www.ruby-lang.org/
+#   TagLib          http://taglib.github.io/
+#   taglib-ruby     http://robinst.github.io/taglib-ruby/
 
 require 'getoptlong'
-require 'rubygems'
-require 'TagLib'
+require 'taglib'
 
 module Output
   @@colour = true
@@ -314,15 +312,12 @@ end
 class VorbisComment < Metadata
   def save
     read.each_key do |field|
-      metadata.removeField(TagLib::String.new(field, TagLib::String::UTF8))
+      metadata.remove_field(field)
     end
 
     @metadata.each do |field, value|
-      field = TagLib::String.new(field, TagLib::String::UTF8)
-
       value.each do |value|
-        value = TagLib::String.new(value, TagLib::String::UTF8)
-        metadata.addField(field, value, false)
+        metadata.add_field(field, value, false)
       end
     end
 
@@ -340,7 +335,7 @@ class VorbisComment < Metadata
   end
 
   def read
-    metadata.fieldListMap.hash
+    metadata.field_list_map
   end
 
   def valid_field?(field)
@@ -366,7 +361,7 @@ class FLAC < VorbisComment
   end
 
   def metadata
-    @file.xiphComment
+    @file.xiph_comment
   end
 end
 
@@ -374,7 +369,7 @@ class Vorbis < VorbisComment
   private
 
   def open(file)
-    TagLib::Vorbis::File.new(file)
+    TagLib::Ogg::Vorbis::File.new(file)
   end
 
   def metadata
@@ -383,6 +378,20 @@ class Vorbis < VorbisComment
 end
 
 class MP3 < Metadata
+  def save
+    read.each_key do |field|
+      metadata.remove_frames(field)
+    end
+
+    @metadata.each do |field, value|
+      value.each do |value|
+        metadata.add_frame(field, value, false)
+      end
+    end
+
+    @file.save
+  end
+
   private
 
   def keys
@@ -398,15 +407,11 @@ class MP3 < Metadata
   end
 
   def metadata
-    @file.ID3v2Tag
+    @file.id3v2_tag
   end
 
   def read
-    Hash[metadata.frameListMap.hash.collect do |field, value|
-      [field, value.collect do |frame|
-        frame.to_s
-      end]
-    end]
+    metadata.frame_list.inject({}) { |m, e| m[e.frame_id] = [e.to_string]; m }
   end
 
   def valid_field?(field)
