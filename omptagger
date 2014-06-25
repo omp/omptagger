@@ -80,8 +80,6 @@ See the man page for:
   - Detailed explanations and examples for each option.
   - General usage information, as well as various tips.
     end
-
-    exit
   end
 end
 
@@ -117,8 +115,8 @@ class Datum
     end
   end
 
-  def save
-    @metadata.save if @metadata.write
+  def save!
+    @metadata.save! if @metadata.write
 
     unless @filename == @metadata.filename
       File.rename(@filename, @metadata.filename)
@@ -138,15 +136,15 @@ class Action
     case @action
     when :view
       str = 'Viewing all fields'
-    when :viewtag
+    when :view_tag
       str = 'Viewing %s field'
-    when :addtag
+    when :add_tag
       str = 'Adding %s field'
-    when :settag
+    when :set_tag
       str = 'Setting %s field'
     when :remove
       str = 'Removing all fields'
-    when :removetag
+    when :remove_tag
       str = 'Removing %s field'
     when :generate
       str = 'Generating fields'
@@ -154,7 +152,7 @@ class Action
       str = 'Renaming file'
     end
 
-    return str % @arguments
+    str % @arguments
   end
 end
 
@@ -218,7 +216,7 @@ class Metadata
     end
   end
 
-  def viewtag(field)
+  def view_tag(field)
     field.upcase!
 
     raise MetadataError, :unset unless @metadata.has_key?(field)
@@ -228,7 +226,7 @@ class Metadata
     end
   end
 
-  def addtag(field, value, padding = 0)
+  def add_tag(field, value, padding = 0)
     field.upcase!
 
     raise MetadataError, :invalid unless valid_field?(field)
@@ -244,7 +242,7 @@ class Metadata
     @write = true
   end
 
-  def settag(field, value, padding = 0)
+  def set_tag(field, value, padding = 0)
     field.upcase!
 
     raise MetadataError, :invalid unless valid_field?(field)
@@ -264,7 +262,7 @@ class Metadata
     @write = true
   end
 
-  def removetag(field)
+  def remove_tag(field)
     field.upcase!
 
     raise MetadataError, :unset unless @metadata.has_key?(field)
@@ -293,7 +291,7 @@ class Metadata
 
     fields.zip(values).each do |field, value|
       unless field.nil?
-        addtag(field, value, longest - field.length)
+        add_tag(field, value, longest - field.length)
       end
     end
   end
@@ -312,7 +310,7 @@ class Metadata
 end
 
 class VorbisComment < Metadata
-  def save
+  def save!
     read.each_key do |field|
       metadata.remove_field(field)
     end
@@ -380,7 +378,7 @@ class Vorbis < VorbisComment
 end
 
 class MP3 < Metadata
-  def save
+  def save!
     read.each_key do |field|
       metadata.remove_frames(field)
     end
@@ -425,8 +423,8 @@ class MP3 < Metadata
   end
 end
 
-actions = Array.new
-options = Hash[:scheme => '%n - %a - %t']
+actions = []
+options = {scheme: '%n - %a - %t'}
 
 GetoptLong.new(
   ['--view',       '-v', GetoptLong::NO_ARGUMENT],
@@ -441,35 +439,36 @@ GetoptLong.new(
   ['--no-colour',  '-c', GetoptLong::NO_ARGUMENT],
   ['--pretend',    '-p', GetoptLong::NO_ARGUMENT],
   ['--help',       '-h', GetoptLong::NO_ARGUMENT]
-).each do |option, argument|
-  option = option.delete('-').intern
+).each do |opt, arg|
+  opt = opt.sub(/\A--/, '').gsub('-', '_').intern
 
-  case option
+  case opt
   when :help
     Output.help
-  when :nocolour, :pretend, :scheme
-    options[option] = argument
-  when :viewtag, :removetag
-    actions << Action.new(option, argument.dup)
-  when :addtag, :settag
-    raise 'Insufficient argument.' unless argument.include?('=')
-    actions << Action.new(option, *argument.split('=', 2))
+    exit
+  when :no_colour, :pretend, :scheme
+    options[opt] = arg
+  when :view_tag, :remove_tag
+    actions << Action.new(opt, arg.dup)
+  when :add_tag, :set_tag
+    raise "Argument must contain '='." unless arg.include?('=')
+    actions << Action.new(opt, *arg.split('=', 2))
   when :generate, :rename
-    actions << Action.new(option, options[:scheme])
+    actions << Action.new(opt, options[:scheme])
   else
-    actions << Action.new(option)
+    actions << Action.new(opt)
   end
 end
 
 if actions.empty?
-  puts 'No actions specified. See the --help option.'
+  $stderr.puts 'No actions specified. See the --help option.'
   exit
 elsif ARGV.empty?
-  puts 'No files specified.'
+  $stderr.puts 'No files specified.'
   exit
 end
 
-Output.colour = false if options[:nocolour]
+Output.colour = false if options.has_key?(:no_colour)
 
 ARGV.each do |filename|
   begin
@@ -479,7 +478,7 @@ ARGV.each do |filename|
       datum.execute(action)
     end
 
-    datum.save unless options[:pretend]
+    datum.save! unless options[:pretend]
   rescue RuntimeError => e
     $stderr.puts "#{$0}: #{filename}: #{e.message}"
   end
