@@ -37,23 +37,23 @@ module Output
       return string
     end
 
-    return "\e[#{code}m#{string}\e[0m"
+    "\e[#{code}m#{string}\e[0m"
   end
 
   def self.file(file)
-    puts colourise(file + ':', :yellow)
+    puts colourise("#{file}:", :yellow)
   end
 
   def self.action(action)
-    puts '  ' + colourise(action + ':', :green)
+    puts "  #{colourise("#{action}:", :green)}"
   end
 
   def self.field(field, value, padding = 0)
-    puts '    ' + colourise(field, :cyan) + ' ' * (2 + padding) + value
+    puts "    #{colourise(field, :cyan)} #{' ' * padding} #{value}"
   end
 
   def self.info(info)
-    puts '    ' + info
+    puts "    #{info}"
   end
 
   def self.help
@@ -111,16 +111,18 @@ class Datum
     Output.action(action.to_s)
 
     begin
-      @metadata.send(*action.arguments.dup.unshift(action.action))
-    rescue MetadataError => message
-      Output.info(message.to_s)
+      @metadata.send(action.action, *action.arguments)
+    rescue MetadataError => e
+      Output.info(e.message)
     end
   end
 
   def save
     @metadata.save if @metadata.write
 
-    File.rename(@filename, @metadata.filename) unless @filename == @metadata.filename
+    unless @filename == @metadata.filename
+      File.rename(@filename, @metadata.filename)
+    end
   end
 end
 
@@ -299,7 +301,7 @@ class Metadata
   def rename(scheme)
     scheme.scan(/%([#{keys.keys.join}])/).flatten.uniq.each do |field|
       raise MetadataError, :rename unless @metadata[keys[field]]
-      scheme = scheme.gsub('%' + field, @metadata[keys[field]].first)
+      scheme = scheme.gsub("%#{field}", @metadata[keys[field]].first)
     end
 
     scheme << File.extname(@filename)
@@ -478,7 +480,7 @@ ARGV.each do |filename|
     end
 
     datum.save unless options[:pretend]
-  rescue RuntimeError => message
-    $stderr.puts $0 + ': ' + filename + ': ' + message
+  rescue RuntimeError => e
+    $stderr.puts "#{$0}: #{filename}: #{e.message}"
   end
 end
