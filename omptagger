@@ -84,14 +84,14 @@ See the man page for:
 end
 
 class Datum
-  def initialize(filename)
-    raise 'File does not exist.' unless File.exist?(filename)
+  def initialize(path)
+    raise 'File does not exist.' unless File.exist?(path)
 
-    Output.file(filename)
+    Output.file(path)
 
-    @filename = File.expand_path(filename)
+    @path = File.expand_path(path)
 
-    case File.extname(filename)
+    case File.extname(path)
     when '.flac'
       type = FLAC
     when '.ogg', '.oga'
@@ -102,7 +102,7 @@ class Datum
       raise 'File extension not recognised.'
     end
 
-    @metadata = type.new(@filename)
+    @metadata = type.new(@path)
   end
 
   def execute(action)
@@ -116,11 +116,9 @@ class Datum
   end
 
   def save!
-    @metadata.save! if @metadata.write
+    @metadata.save! if @metadata.modified?
 
-    unless @filename == @metadata.filename
-      File.rename(@filename, @metadata.filename)
-    end
+    File.rename(@path, @metadata.path) unless @path == @metadata.path
   end
 end
 
@@ -157,12 +155,12 @@ class Action
 end
 
 class MetadataError < RuntimeError
-  def initialize(error)
-    @error = error
+  def initialize(type)
+    @type = type
   end
 
   def to_s
-    case @error
+    case @type
     when :empty
       str = 'No fields set.'
     when :generate
@@ -196,14 +194,18 @@ class Hash
 end
 
 class Metadata
-  attr_reader :filename, :write
+  attr_reader :path
 
   def initialize(file)
-    @filename = File.expand_path(file)
+    @path = File.expand_path(file)
 
     @file = open(file)
     @metadata = read
-    @write = false
+    @modified = false
+  end
+
+  def modified?
+    @modified
   end
 
   def view
@@ -239,7 +241,7 @@ class Metadata
 
     Output.field(field, value, padding)
 
-    @write = true
+    @modified = true
   end
 
   def set_tag(field, value, padding = 0)
@@ -250,7 +252,7 @@ class Metadata
     @metadata[field] = [value]
     Output.field(field, value, padding)
 
-    @write = true
+    @modified = true
   end
 
   def remove
@@ -259,7 +261,7 @@ class Metadata
     @metadata.clear
     Output.info('Removed.')
 
-    @write = true
+    @modified = true
   end
 
   def remove_tag(field)
@@ -270,7 +272,7 @@ class Metadata
     @metadata.delete(field)
     Output.info('Removed.')
 
-    @write = true
+    @modified = true
   end
 
   def generate(scheme)
@@ -279,7 +281,7 @@ class Metadata
     regexp = /#{regexp}\Z/
 
     fields = scheme.scan(regexp).flatten
-    values = @filename.chomp(File.extname(@filename)).scan(regexp).flatten
+    values = @path.chomp(File.extname(@path)).scan(regexp).flatten
 
     raise MetadataError, :generate unless fields.length == values.length
 
@@ -302,10 +304,10 @@ class Metadata
       scheme = scheme.gsub("%#{field}", @metadata[keys[field]].first)
     end
 
-    scheme << File.extname(@filename)
-    @filename = File.join(File.dirname(@filename), scheme)
+    scheme << File.extname(@path)
+    @path = File.join(File.dirname(@path), scheme)
 
-    Output.info(@filename)
+    Output.info(@path)
   end
 end
 
@@ -470,9 +472,9 @@ end
 
 Output.colour = false if options.has_key?(:no_colour)
 
-ARGV.each do |filename|
+ARGV.each do |path|
   begin
-    datum = Datum.new(filename)
+    datum = Datum.new(path)
 
     actions.each do |action|
       datum.execute(action)
@@ -480,6 +482,6 @@ ARGV.each do |filename|
 
     datum.save! unless options[:pretend]
   rescue RuntimeError => e
-    $stderr.puts "#{$0}: #{filename}: #{e.message}"
+    $stderr.puts "#{$0}: #{path}: #{e.message}"
   end
 end
