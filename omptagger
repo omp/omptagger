@@ -91,16 +91,17 @@ class Datum
 
     @path = File.expand_path(path)
 
-    case File.extname(path)
-    when '.flac'
-      type = FLAC
-    when '.ogg', '.oga'
-      type = Vorbis
-    when '.mp3'
-      type = MP3
-    else
-      raise 'File extension not recognised.'
-    end
+    type =
+      case File.extname(@path)
+      when '.flac'
+        FLAC
+      when '.ogg', '.oga'
+        Vorbis
+      when '.mp3'
+        MP3
+      else
+        raise 'File extension not recognised.'
+      end
 
     @metadata = type.new(@path)
   end
@@ -133,24 +134,22 @@ class Action
   def to_s
     case @action
     when :view
-      str = 'Viewing all fields'
+      'Viewing all fields'
     when :view_tag
-      str = 'Viewing %s field'
+      'Viewing %s field'
     when :add_tag
-      str = 'Adding %s field'
+      'Adding %s field'
     when :set_tag
-      str = 'Setting %s field'
+      'Setting %s field'
     when :remove
-      str = 'Removing all fields'
+      'Removing all fields'
     when :remove_tag
-      str = 'Removing %s field'
+      'Removing %s field'
     when :generate
-      str = 'Generating fields'
+      'Generating fields'
     when :rename
-      str = 'Renaming file'
-    end
-
-    str % @arguments
+      'Renaming file'
+    end % @arguments
   end
 end
 
@@ -162,18 +161,16 @@ class MetadataError < RuntimeError
   def to_s
     case @type
     when :empty
-      str = 'No fields set.'
+      'No fields set.'
     when :generate
-      str = 'Filename does not match scheme.'
+      'Filename does not match scheme.'
     when :invalid
-      str = 'Invalid field name.'
+      'Invalid field name.'
     when :rename
-      str = 'Insufficient tags.'
+      'Insufficient tags.'
     when :unset
-      str = 'Field not set.'
+      'Field not set.'
     end
-
-    return str
   end
 end
 
@@ -187,9 +184,7 @@ end
 
 class Hash
   def longest_key_length
-    self.keys.inject(0) do |longest, key|
-      key.length > longest ? key.length : longest
-    end
+    self.keys.longest_element_length
   end
 end
 
@@ -426,7 +421,7 @@ class MP3 < Metadata
 end
 
 actions = []
-options = {scheme: '%n - %a - %t'}
+options = { scheme: '%n - %a - %t' }
 
 GetoptLong.new(
   ['--view',       '-v', GetoptLong::NO_ARGUMENT],
